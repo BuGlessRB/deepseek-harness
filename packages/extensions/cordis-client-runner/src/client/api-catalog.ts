@@ -383,8 +383,14 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       {
         signature: 'listDirectory(path?: string, signal?: AbortSignal): Promise<DirectoryListing>',
         description: 'List one Host directory level.',
-        parameters: [{ name: 'path', description: 'directory path; absent selects the Host home.' }, { name: 'signal', description: 'cancellation for a superseded scan.' }],
+        parameters: [{ name: 'path', description: 'directory path; absent selects directoryStartPath().' }, { name: 'signal', description: 'cancellation for a superseded scan.' }],
         returns: 'directory entries and breadcrumb ancestry.',
+      },
+      {
+        signature: 'directoryStartPath(): string',
+        description: 'The directory a browsing surface opens at when the caller names no path: the current Session\'s workspace root, else the most recent Workspace, else the Host home.',
+        parameters: [],
+        returns: 'an absolute Host directory path.',
       },
       {
         signature: 'createDirectory(path: string, name: string): Promise<string>',

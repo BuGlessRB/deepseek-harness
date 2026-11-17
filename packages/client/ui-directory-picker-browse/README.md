@@ -27,6 +27,8 @@ This package provides the in-app directory-browsing surface for the Web GUI: a S
 
 Mount this plugin alongside `ui-workspace` and the host backend [`dsh-host-directory-picker-browse`](../../host/directory-picker-browse/README.md); one cordis.yml row then composes the whole browse picking interaction. When a workspace flow opens a directory request, the user sees the in-app dialog: a header with the path breadcrumb and an editable path zone, then a single full-width level until a row is selected, after which the row splits into level and children columns.
 
+The dialog opens at `uiWorkspace.directoryStartPath()` — the current Session's Workspace root, else the most recent Workspace, else the Host home — so it starts where the user already works instead of at a home directory a confined Host may be unable to list. Editing the path or clicking a crumb navigates anywhere the Host can read; a failed start path surfaces as the dialog's own alert and leaves the path editor as the way forward.
+
 ### Navigating and creating
 
 Step through folders, edit the path directly, or filter the last pane by prefix; a Host-flagged hidden entry stays hidden until the footer toggle reveals it. **New folder** opens a nested create dialog targeting the selected folder and selects what it creates; **Open** adopts the selected folder, falling back to the listed level. Confirming a directory is the picked path; dismissing the dialog is the cancellation.
@@ -39,7 +41,7 @@ Step through folders, edit the path directly, or filter the last pane by prefix;
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The dialog is a 680×500 Miller-column view (clamped on short or narrow viewports), driven by the host `listDirectory` and `createDirectory` primitives through `ctx.workspaces`. The three registrations install as one transactional effect through nested `ctx.slots.inject()` calls, because each declaring entry or Factory may activate later or replace its declaration; the dialog's copy lives in this package's own locale namespace so the two dictionaries land as a unit. Browse failures stay inside the dialog's own alert surfaces, so this occupant never drives the owner's `onError` arm. The node half is an empty `apply` that keeps the plugin on the host roster.
+The dialog is a 680×500 Miller-column view (clamped on short or narrow viewports), driven by the host `listDirectory` and `createDirectory` primitives through `ctx.workspaces`. Every open, and every recovery after the initial listing was cancelled, lists the owner's start path explicitly rather than the wire's absent-path form, whose Host home may lie outside what the Host can read. The three registrations install as one transactional effect through nested `ctx.slots.inject()` calls, because each declaring entry or Factory may activate later or replace its declaration; the dialog's copy lives in this package's own locale namespace so the two dictionaries land as a unit. Browse failures stay inside the dialog's own alert surfaces, so this occupant never drives the owner's `onError` arm. The node half is an empty `apply` that keeps the plugin on the host roster.
 
 The New folder and Cancel actions use the shared [Button](../ui-primitives/README.md)'s inset hairline, which preserves their layout border and keeps the stroke complete at fractional button widths.
 

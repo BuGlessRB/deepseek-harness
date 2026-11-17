@@ -27,6 +27,8 @@ kind: "package-reference"
 
 与 `ui-workspace` 及宿主后端 [`dsh-host-directory-picker-browse`](../../host/directory-picker-browse/README.zh.md) 一起挂载本插件；一行 cordis.yml 随即组合出完整的浏览拾取交互。当工作区流程发起目录请求时，用户看到应用内对话框：头部承载路径面包屑与可编辑路径区，未选中行时是一整栏层级，选中后该行分为层级与子项两栏。
 
+对话框在 `uiWorkspace.directoryStartPath()` 处打开——当前 Session 的 Workspace 根目录，其次最近的 Workspace，最后才是宿主主目录——因此它从用户已在其中工作的目录开始，而不是从一个受限宿主可能无法列出的主目录开始。编辑路径或点击面包屑可前往宿主能读取的任何位置；起始路径不可读时作为对话框自身的提示显示，路径编辑器仍是继续前进的方式。
+
 ### 导航与创建
 
 逐级进入文件夹、直接编辑路径，或用前缀过滤最后一栏；宿主标记的隐藏条目默认不显示，直到页脚开关揭开。**新建文件夹**打开一个嵌套创建对话框，目标为选中的文件夹，并选中它创建出来的那个；**打开**采纳选中的文件夹，没有选中时回落到当前层级。确认一个目录即为选中的路径；关闭对话框即为取消。
@@ -39,7 +41,7 @@ kind: "package-reference"
 <details>
 <summary>实现细节——点击展开</summary>
 
-对话框是 680×500 的 Miller 分栏视图（在较矮或较窄的视口中限制尺寸），经 `ctx.workspaces` 驱动宿主的 `listDirectory` 与 `createDirectory` 原语。三处注册经嵌套的 `ctx.slots.inject()` 调用作为一次事务性效果安装，因为每个声明条目或 Factory 都可能晚些激活或替换其声明；对话框文案注册在本包自己的 locale 命名空间下，让两份字典作为一个单元落地。浏览类失败留在对话框自己的提示区内，因此本填充从不驱动持有方的 `onError` 分支。node 半部是一个空 `apply`，让插件留在宿主名单上。
+对话框是 680×500 的 Miller 分栏视图（在较矮或较窄的视口中限制尺寸），经 `ctx.workspaces` 驱动宿主的 `listDirectory` 与 `createDirectory` 原语。每次打开、以及初次列举被取消后的每次恢复，都显式列举持有方给出的起始路径，而不使用线上协议中不带路径的形式——后者的宿主主目录可能位于宿主可读取范围之外。三处注册经嵌套的 `ctx.slots.inject()` 调用作为一次事务性效果安装，因为每个声明条目或 Factory 都可能晚些激活或替换其声明；对话框文案注册在本包自己的 locale 命名空间下，让两份字典作为一个单元落地。浏览类失败留在对话框自己的提示区内，因此本填充从不驱动持有方的 `onError` 分支。node 半部是一个空 `apply`，让插件留在宿主名单上。
 
 New folder 和 Cancel 操作使用共享 [Button](../ui-primitives/README.zh.md) 的内侧细描边，保留布局边框，并使小数宽度的按钮保持完整描边。
 

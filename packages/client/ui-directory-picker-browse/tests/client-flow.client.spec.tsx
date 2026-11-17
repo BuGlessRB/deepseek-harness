@@ -22,6 +22,7 @@ const HOLES = [
 ] as const
 
 const HOME = '/home/u'
+const START = '/var/src/project'
 const homeListing: DirectoryListing = {
   path: HOME,
   home: HOME,
@@ -36,13 +37,14 @@ async function bench() {
   ctx.provide('locale', new LocaleRuntime(ctx))
   const listDirectory = vi.fn(async (): Promise<DirectoryListing> => homeListing)
   const createDirectory = vi.fn(async (path: string, name: string) => `${path}/${name}`)
-  ctx.provide('uiWorkspace', { listDirectory, createDirectory } as never)
+  const directoryStartPath = vi.fn(() => START)
+  ctx.provide('uiWorkspace', { listDirectory, createDirectory, directoryStartPath } as never)
   const slots = ctx.get('slots') as SlotRegistry
   const declare = () => slots.register({
     name: 'root',
     children: Object.fromEntries(HOLES.map(name => [name, { kind: 'single', scope: 'root' }])),
   } as never, () => null)
-  return { ctx, slots, listDirectory, createDirectory, declare }
+  return { ctx, slots, listDirectory, createDirectory, directoryStartPath, declare }
 }
 
 function owner(overrides: Partial<DirectoryFlowOwnerProps> = {}): DirectoryFlowOwnerProps {
@@ -202,9 +204,12 @@ describe('directory-picker-browse client half', () => {
     const entry = b.slots.entries(HOLES[1])[0]!
     const injected = (entry.inject as () => {
       listDirectory: (path?: string) => Promise<DirectoryListing>
+      startPath: () => string
       createDirectory: (path: string, name: string) => Promise<string>
     })()
     await expect(injected.listDirectory()).resolves.toBe(homeListing)
+    expect(injected.startPath()).toBe(START)
+    expect(b.directoryStartPath).toHaveBeenCalledOnce()
     await expect(injected.createDirectory(HOME, 'fresh')).resolves.toBe(`${HOME}/fresh`)
     expect(b.listDirectory).toHaveBeenCalledOnce()
     expect(b.createDirectory).toHaveBeenCalledWith(HOME, 'fresh')
@@ -218,13 +223,16 @@ describe('directory-picker-browse client half', () => {
       <BrowseDirectoryFlow
         {...props}
         listDirectory={listDirectory}
+        startPath={() => START}
         createDirectory={vi.fn(async () => '')}
         t={t}
       />,
     )
-    // The dialog opened at home; its confirm (browser.open) adopts the listed level.
+    // The dialog opened at the owner start path; its confirm (browser.open)
+    // adopts the listed level (the fake answers any path with HOME).
     const openButton = screen.getByRole<HTMLButtonElement>('button', { name: 'browser.open' })
     await waitFor(() => { expect(openButton.disabled).toBe(false) })
+    expect(listDirectory).toHaveBeenCalledWith(START, expect.any(AbortSignal))
     fireEvent.click(openButton)
     expect(props.onPicked).toHaveBeenCalledWith(HOME)
     fireEvent.click(screen.getByRole('button', { name: 'browser.cancel' }))
@@ -237,6 +245,7 @@ describe('directory-picker-browse client half', () => {
       <BrowseDirectoryFlow
         {...owner({ open: false })}
         listDirectory={vi.fn(async () => homeListing)}
+        startPath={() => START}
         createDirectory={vi.fn(async () => '')}
         t={key => key}
       />,

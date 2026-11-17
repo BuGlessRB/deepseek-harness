@@ -93,6 +93,7 @@ function mount(overrides: Partial<Parameters<typeof DirectoryBrowser>[0]> = {}) 
   const props = {
     open: true,
     listDirectory,
+    startPath: () => HOME,
     createDirectory,
     onOpen,
     onClose,
@@ -121,10 +122,10 @@ describe('DirectoryBrowser', () => {
     expect(b.listDirectory).not.toHaveBeenCalled()
   })
 
-  it('opens at the Host home as one wide column, hides hidden entries, and roots the crumbs at Home', async () => {
+  it('opens at the owner start path as one wide column, hides hidden entries, and roots the crumbs at Home', async () => {
     const b = mount()
     await waitFor(() => { expect(screen.getByRole('listitem')).toBeTruthy() })
-    expect(b.listDirectory).toHaveBeenCalledWith(undefined, expect.any(AbortSignal))
+    expect(b.listDirectory).toHaveBeenCalledWith(HOME, expect.any(AbortSignal))
     expect(columns()).toHaveLength(1)
     expect(screen.getByRole('listitem').textContent).toBe('Documents')
     expect(screen.queryByText('.config')).toBeNull()
@@ -250,12 +251,13 @@ describe('DirectoryBrowser', () => {
     try {
       const signals: (AbortSignal | undefined)[] = []
       const settlers: ((value: DirectoryListing) => void)[] = []
-      // Only the FIRST explicit HOME request (the parent leg) hangs; the
-      // later home crumb jump lists normally.
+      // Only the SECOND HOME request (the parent leg of the navigation,
+      // after the initial start-path listing) hangs; the later home crumb
+      // jump lists normally.
       let homeCalls = 0
       const listDirectory = vi.fn((path?: string, signal?: AbortSignal) => {
         signals.push(signal)
-        if (path === HOME && ++homeCalls === 1) {
+        if (path === HOME && ++homeCalls === 2) {
           return new Promise<DirectoryListing>((resolve) => { settlers.push(resolve) })
         }
         return Promise.resolve(listingFor(path))
@@ -293,14 +295,17 @@ describe('DirectoryBrowser', () => {
 
   /**
    * Listing fake whose explicit-path scans stay pending until the test
-   * settles them by path; the absent-path form (the initial home listing)
-   * resolves normally so mounting is a one-flush setup.
+   * settles them by path; the initial start-path listing resolves normally
+   * so mounting is a one-flush setup.
    */
   function manualLister() {
     const settlers = new Map<string, (value: DirectoryListing) => void>()
+    let opened = false
     const listDirectory = vi.fn((path?: string, _signal?: AbortSignal) => {
-      if (path === undefined) return Promise.resolve(listingFor(path))
-      return new Promise<DirectoryListing>((resolve) => { settlers.set(path, resolve) })
+      // Only the open's own start-path listing answers at once; every later
+      // level waits for its test to settle it.
+      if (path === HOME && !opened) { opened = true; return Promise.resolve(listingFor(path)) }
+      return new Promise<DirectoryListing>((resolve) => { settlers.set(path ?? '', resolve) })
     })
     return { settlers, listDirectory }
   }
@@ -402,8 +407,8 @@ describe('DirectoryBrowser', () => {
       // keep rendering through the scan, coexisting with the indicator.
       const settlers = new Map<string, (value: DirectoryListing) => void>()
       const listDirectory = vi.fn((path?: string, _signal?: AbortSignal) => {
-        if (path === undefined) return Promise.resolve({ ...listingFor(path), truncated: true })
-        return new Promise<DirectoryListing>((resolve) => { settlers.set(path, resolve) })
+        if (path === HOME) return Promise.resolve({ ...listingFor(path), truncated: true })
+        return new Promise<DirectoryListing>((resolve) => { settlers.set(path ?? '', resolve) })
       })
       mount({ listDirectory })
       await act(async () => {})
@@ -423,11 +428,13 @@ describe('DirectoryBrowser', () => {
       expect(screen.getByText('browser.truncated')).toBeTruthy()
       expect(screen.getByText('Documents')).toBeTruthy()
       // Landing (both legs) retires the indicator with the scan, and the
-      // fresh listings' own truncated state replaces the stale note.
+      // fresh listings' own truncated state replaces the stale note: the
+      // target level is whole, and the parent leg is the truncated HOME
+      // level above, whose note therefore survives the landing.
       await act(async () => { settlers.get(DOCS)!(listingFor(DOCS)) })
-      await act(async () => { settlers.get(HOME)!(listingFor(HOME)) })
+      await act(async () => {})
       expect(screen.queryByText('browser.loading')).toBeNull()
-      expect(screen.queryByText('browser.truncated')).toBeNull()
+      expect(screen.getByText('browser.truncated')).toBeTruthy()
       expect(columns()).toHaveLength(2)
     } finally {
       vi.useRealTimers()
@@ -439,7 +446,7 @@ describe('DirectoryBrowser', () => {
     try {
       const pending: ((value: DirectoryListing) => void)[] = []
       const listDirectory = vi.fn((path?: string, _signal?: AbortSignal) => {
-        if (path === undefined) return Promise.resolve(listingFor(path))
+        if (path === HOME) return Promise.resolve(listingFor(path))
         return new Promise<DirectoryListing>((resolve) => { pending.push(resolve) })
       })
       mount({ listDirectory })
@@ -491,10 +498,12 @@ describe('DirectoryBrowser', () => {
   })
 
   it('keeps the single-pane landing when the truncated parent level lacks the target', async () => {
+    let opened = false
     const listDirectory = vi.fn(async (path?: string) => {
-      // The parent leg names HOME explicitly; serve it a truncated window
-      // that misses Documents (the initial open uses the absent-path form).
-      if (path === HOME) return { ...listingFor(HOME), entries: [], truncated: true }
+      // The parent leg names HOME a second time; serve it a truncated window
+      // that misses Documents (the open's own start-path listing is whole).
+      if (path === HOME && opened) return { ...listingFor(HOME), entries: [], truncated: true }
+      if (path === HOME) opened = true
       return listingFor(path)
     })
     mount({ listDirectory })
@@ -582,12 +591,14 @@ describe('DirectoryBrowser', () => {
   })
 
   it('falls back to the single-pane landing when the parent leg of a navigation fails', async () => {
+    let opened = false
     const listDirectory = vi.fn(async (path?: string) => {
-      // The initial open lists home through the absent-path form; only the
-      // parent leg names HOME explicitly.
-      if (path === HOME) {
+      // The open's start-path listing succeeds; the parent leg (a second
+      // HOME request) is the one that fails.
+      if (path === HOME && opened) {
         throw new Error('parent gone')
       }
+      if (path === HOME) opened = true
       return listingFor(path)
     })
     mount({ listDirectory })
@@ -792,6 +803,8 @@ describe('DirectoryBrowser', () => {
       },
     }
     mount({
+      // The dialog opens at the owner's start path, which is this tree's root.
+      startPath: () => ROOT,
       listDirectory: vi.fn(async (path?: string) => {
         const asked = path ?? ROOT
         const found = tree[asked.length > 1 && asked.endsWith('/') ? asked.slice(0, -1) : asked]
@@ -838,11 +851,15 @@ describe('DirectoryBrowser', () => {
 
   it('waits both legs out for a walk: one keystroke never flashes a single pane', async () => {
     let landParent = (): void => {}
+    let opened = false
     const listDirectory = vi.fn(async (path?: string) => {
       // The parent leg outlives the submitted-navigation wait bound; a walk
       // has nothing waiting on it, so it holds the stale view instead of
       // landing single-pane and upgrading.
-      if (path === HOME) return await new Promise<DirectoryListing>((resolve) => { landParent = () => { resolve(listingFor(HOME)) } })
+      if (path === HOME && opened) {
+        return await new Promise<DirectoryListing>((resolve) => { landParent = () => { resolve(listingFor(HOME)) } })
+      }
+      if (path === HOME) opened = true
       return listingFor(path)
     })
     mount({ listDirectory })
@@ -961,9 +978,9 @@ describe('DirectoryBrowser', () => {
     fireEvent.change(input, { target: { value: HARNESS } })
     fireEvent.keyDown(input, { key: 'Enter' })
     await act(async () => { await new Promise((resolve) => { setTimeout(resolve, 400) }) })
-    // Only the initial home listing and the submitted path — the draft's
-    // directory part was never scanned behind the navigation's back.
-    expect(listDirectory.mock.calls.map(call => call[0])).toEqual([undefined, HARNESS])
+    // Only the initial start-path listing and the submitted path — the
+    // draft's directory part was never scanned behind the navigation's back.
+    expect(listDirectory.mock.calls.map(call => call[0])).toEqual([HOME, HARNESS])
   })
 
   it('discards draft-following scans that a newer edit superseded', async () => {
@@ -1153,9 +1170,9 @@ describe('DirectoryBrowser', () => {
     expect(screen.getByRole('listitem').textContent).toBe('Documents')
   })
 
-  it('restarts the home listing when Escape cancels an edit opened before any level listed', async () => {
-    // The initial home listing hangs; Edit Path supersedes it while parent
-    // is still null, and Escape must not strand a blank picker.
+  it('restarts the start-path listing when Escape cancels an edit opened before any level listed', async () => {
+    // The initial start-path listing hangs; Edit Path supersedes it while
+    // parent is still null, and Escape must not strand a blank picker.
     let settled = false
     const gate = new Promise<never>(() => {})
     const listDirectory = vi.fn(async (path?: string) => {
@@ -1167,11 +1184,27 @@ describe('DirectoryBrowser', () => {
     const input = screen.getByLabelText<HTMLInputElement>('browser.editPath')
     expect(input.value).toBe('')
     fireEvent.keyDown(input, { key: 'Escape' })
-    // Cancellation relaunched the home listing instead of leaving neither
-    // rows nor status behind.
+    // Cancellation relaunched the start-path listing instead of leaving
+    // neither rows nor status behind.
     await waitFor(() => { expect(screen.getByRole('listitem').textContent).toBe('Documents') })
     expect(listDirectory).toHaveBeenCalledTimes(2)
-    expect(listDirectory).toHaveBeenLastCalledWith(undefined, expect.any(AbortSignal))
+    expect(listDirectory).toHaveBeenLastCalledWith(HOME, expect.any(AbortSignal))
+  })
+
+  it('reopens at the owner start path, so a workspace root outside home is listed directly', async () => {
+    // A confined Host cannot list its own home; the owner names a workspace
+    // root instead, and the dialog never falls back to the absent-path form.
+    const ROOT = '/var/src/project'
+    const startPath = vi.fn(() => ROOT)
+    // Every listing answers as the root's level: the fixed tree is irrelevant here.
+    const listDirectory = vi.fn(async (_path?: string) => listingFor(HOME))
+    const b = mount({ listDirectory, startPath })
+    await waitFor(() => { expect(screen.getByRole('listitem')).toBeTruthy() })
+    expect(startPath).toHaveBeenCalled()
+    expect(listDirectory.mock.calls.map(call => call[0])).toEqual([ROOT])
+    b.view.rerender(<DirectoryBrowser {...b.props} open={false} />)
+    b.view.rerender(<DirectoryBrowser {...b.props} open />)
+    await waitFor(() => { expect(listDirectory.mock.calls.map(call => call[0])).toEqual([ROOT, ROOT]) })
   })
 
   it('passes the entered path to the Host untrimmed (trim only gates blank drafts)', async () => {
@@ -1746,7 +1779,7 @@ describe('DirectoryBrowser', () => {
     await waitFor(() => { expect(row.scrollLeft).toBe(640) })
   })
 
-  it('starts back at home on reopen', async () => {
+  it('starts back at the owner start path on reopen', async () => {
     const b = mount()
     await waitFor(() => { expect(screen.getByRole('listitem')).toBeTruthy() })
     fireEvent.click(rowButton(screen.getByRole('listitem')))
@@ -1755,6 +1788,6 @@ describe('DirectoryBrowser', () => {
     b.view.rerender(<DirectoryBrowser {...b.props} open />)
     await waitFor(() => { expect(screen.getByRole('listitem').textContent).toBe('Documents') })
     expect(columns()).toHaveLength(1)
-    expect(b.listDirectory).toHaveBeenLastCalledWith(undefined, expect.any(AbortSignal))
+    expect(b.listDirectory).toHaveBeenLastCalledWith(HOME, expect.any(AbortSignal))
   })
 })

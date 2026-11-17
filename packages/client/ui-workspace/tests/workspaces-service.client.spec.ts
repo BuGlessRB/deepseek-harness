@@ -298,6 +298,10 @@ function bench(options: BenchOptions = {}) {
   ctx.provide('layout', layout)
   ctx.effect(() => () => { layout.dispose() })
   const directoryPicker = new FakeDirectoryPicker()
+  const remote: { $host: { home: string | undefined; isLoopback: boolean } } = {
+    $host: { home: '/home/u', isLoopback: true },
+  }
+  ctx.provide('remote', remote)
   const workspaces = new FakeWorkspaces(options.workspaces ?? workspaceState([], [], 'pending'))
   const sessions = new FakeSessions(options.sessions ?? sessionState([], 'pending'))
   options.configureWorkspaces?.(workspaces)
@@ -315,7 +319,10 @@ function bench(options: BenchOptions = {}) {
     notify,
     createSnapshotStore<number | undefined>(10),
   )
-  return { ctx, directoryPicker, sessions, uiWorkspace, workspaces, layout, selectPanel, view, notify, requestDraftInitialization, status }
+  return {
+    ctx, directoryPicker, remote, sessions, uiWorkspace, workspaces, layout, selectPanel, view, notify,
+    requestDraftInitialization, status,
+  }
 }
 
 function lastOpening(open: MockInstance<UiWorkspaceService['openWorkspace']>): Promise<void> {
@@ -343,6 +350,33 @@ describe('UiWorkspaceService', () => {
     expect(b.workspaces.initializeDefault).toHaveBeenCalledExactlyOnceWith(expect.any(AbortSignal))
     expect(b.sessions.create).toHaveBeenCalledWith({ workspaceId: wid('default') })
     expect(b.notify).not.toHaveBeenCalled()
+  })
+
+  it('starts directory browsing at the current workspace root, then the most recent Workspace, then home', async () => {
+    // An empty ledger has no root to offer: the Host home is the only anchor.
+    const empty = bench({ workspaces: workspaceState(), sessions: sessionState() })
+    expect(empty.uiWorkspace.directoryStartPath()).toBe('/home/u')
+
+    const a = workspace('a')
+    const b = workspace('b')
+    const older = summary('older', { cwd: a.path, updatedAt: 1 })
+    const newer = summary('newer', { cwd: b.path, updatedAt: 2 })
+    const b1 = bench({
+      workspaces: workspaceState([{ ...a, sessionIds: [older.id] }, { ...b, sessionIds: [newer.id] }]),
+      sessions: sessionState([older, newer]),
+    })
+    // With no current Session the most recently touched Workspace wins.
+    expect(b1.uiWorkspace.directoryStartPath()).toBe(b.path)
+    // The current Session's own Workspace wins over recency — and it is the
+    // directory the operator is working in, not the Host home.
+    b1.uiWorkspace.openSession(older.id)
+    expect(b1.uiWorkspace.directoryStartPath()).toBe(a.path)
+
+    // Before the ready frame reports a home and with no Workspace at all,
+    // the empty path stands for the Host's own home resolution.
+    const late = bench({ workspaces: workspaceState(), sessions: sessionState() })
+    late.remote.$host = { home: undefined, isLoopback: true }
+    expect(late.uiWorkspace.directoryStartPath()).toBe('')
   })
 
   it('leaves an ineligible empty installation without a Session or failure notice', async () => {
@@ -1643,9 +1677,10 @@ describe('UiWorkspaceService', () => {
     await expect(b.uiWorkspace.pickDirectory()).resolves.toBeNull()
     expect(b.directoryPicker.callsOf('pick')).toEqual([{}, {}])
 
+    // The absent-path form lists the start path, never the wire's home form.
     await expect(b.uiWorkspace.listDirectory()).resolves.toEqual(listing)
     await expect(b.uiWorkspace.listDirectory('/home/u')).resolves.toEqual(listing)
-    expect(b.directoryPicker.callsOf('list')).toEqual([{ path: undefined }, { path: '/home/u' }])
+    expect(b.directoryPicker.callsOf('list')).toEqual([{ path: '/home/u' }, { path: '/home/u' }])
     await expect(b.uiWorkspace.createDirectory('/home/u', 'new')).resolves.toBe('/home/u/new')
     expect(b.directoryPicker.callsOf('createDirectory')).toEqual([{ path: '/home/u', name: 'new' }])
     b.directoryPicker.onPick = () => Promise.resolve({

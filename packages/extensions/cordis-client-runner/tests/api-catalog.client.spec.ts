@@ -31,6 +31,7 @@ describe('Client Cordis inspect catalog', () => {
         'unarchiveSession(sessionId: SessionId): Promise<void>',
         'pickDirectory(): Promise<string | null>',
         'listDirectory(path?: string, signal?: AbortSignal): Promise<DirectoryListing>',
+        'directoryStartPath(): string',
         'createDirectory(path: string, name: string): Promise<string>',
       ])
   })

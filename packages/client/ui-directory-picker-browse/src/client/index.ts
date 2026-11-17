@@ -167,6 +167,7 @@ export function apply(ctx: ClientContext): void {
 
   const injected = (): BrowseFlowInjected => ({
     listDirectory: (path, signal) => ctx.uiWorkspace.listDirectory(path, signal),
+    startPath: () => ctx.uiWorkspace.directoryStartPath(),
     createDirectory: (path, name) => ctx.uiWorkspace.createDirectory(path, name),
     t: ctx.locale.bind(LOCALE_NS),
   })

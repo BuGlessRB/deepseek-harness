@@ -56,6 +56,15 @@ export interface DirectoryBrowserProps {
    */
   listDirectory: (path?: string, signal?: AbortSignal) => Promise<DirectoryListing>
   /**
+   * The directory the dialog opens at when no level is listed yet — every
+   * open and every recovery from a cancelled initial listing. It is the
+   * owner's answer, not the Host home: a workspace root is a directory the
+   * operator already works in, and a confined Host may be unable to list the
+   * home it runs under.
+   * @returns an absolute directory path.
+   */
+  startPath: () => string
+  /**
    * Create one child directory under an existing parent. A rejection may
    * carry `{ rpcError: { message: string } }`; the dialog prefers that Host
    * business message over the ordinary Error text.
@@ -270,7 +279,7 @@ function LevelColumn({ entries, selectedPath, busy, onPick, showHidden, filterPr
  * @param props - owner-controlled browser props.
  * @returns the dialog element (null while closed, via Modal).
  */
-export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen, onClose, busy, t }: DirectoryBrowserProps) {
+export function DirectoryBrowser({ open, listDirectory, startPath, createDirectory, onOpen, onClose, busy, t }: DirectoryBrowserProps) {
   // Miller state: the listed level, the selected row in it, and the selected
   // folder's own listing (the right column; null while nothing is selected).
   const [parent, setParent] = useState<DirectoryListing | null>(null)
@@ -479,7 +488,7 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
     })
   }, [launchListing, continueScan])
 
-  /** Commit a submitted path (Enter, a crumb, the initial home listing): the editor closes, failures surface. */
+  /** Commit a submitted path (Enter, a crumb, the initial start-path listing): the editor closes, failures surface. */
   const navigate = useCallback((path?: string) => {
     land(path, { closeEditor: true, announce: true })
   }, [land])
@@ -556,11 +565,11 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
     // selection with no preview would render a half-empty two-pane view, so
     // cancel falls back to the single-pane level.
     if (child === null) setSelected(null)
-    // With no level listed yet (the editor superseded the initial home
-    // listing), plain cancellation would leave a permanently blank picker:
-    // restart the home listing.
-    if (parent === null) navigate()
-  }, [supersede, child, parent, navigate])
+    // With no level listed yet (the editor superseded the initial listing),
+    // plain cancellation would leave a permanently blank picker: restart the
+    // initial (start-path) listing.
+    if (parent === null) navigate(startPath())
+  }, [supersede, child, parent, navigate, startPath])
 
   /** A right-column pick advances the view one level: child becomes the level. */
   const advance = useCallback((entry: DirectoryEntry) => {
@@ -570,7 +579,7 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
     select(entry)
   }, [child, select])
 
-  // Every open starts fresh at the Host home directory; closing invalidates
+  // Every open starts fresh at the owner's start path; closing invalidates
   // any in-flight response so a late arrival cannot repopulate a closed dialog.
   useEffect(() => {
     openGeneration.current += 1
@@ -580,7 +589,7 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
       setChild(null)
       setCreatingFolder(false)
       setShowHidden(false)
-      navigate()
+      navigate(startPath())
       return
     }
     supersede()
@@ -597,7 +606,7 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
     // flags armed; retire them so a later render cannot consume them.
     refocusPick.current = false
     refocusEditZone.current = false
-  }, [open, navigate, supersede])
+  }, [open, navigate, startPath, supersede])
 
   /** The folder a create or Open acts on: the selection, else the listed level. */
   const targetPath = selected?.path ?? parent?.path ?? null
@@ -847,7 +856,7 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
                     className={css.crumbEditZone}
                     aria-label={t('browser.editPath')}
                     title={t('browser.editPath')}
-                    // Stays available with no listed level: when the home
+                    // Stays available with no listed level: when the initial
                     // listing itself fails, typing an absolute path is the one
                     // remaining way forward.
                     disabled={parentInert}
@@ -862,7 +871,7 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
                       // Seed with a trailing separator so typing immediately
                       // continues into child names (and prefix-filters below).
                       // No listed level means nothing to seed from (the editor
-                      // is the recovery path for a failed home listing).
+                      // is the recovery path for a failed initial listing).
                       if (parent === null) {
                         setPathDraft('')
                         return

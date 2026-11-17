@@ -122,11 +122,21 @@ export interface UiWorkspace {
   pickDirectory(): Promise<string | null>
   /**
    * List one Host directory level.
-   * @param path - directory path; absent selects the Host home.
+   * @param path - directory path; absent selects {@link UiWorkspace.directoryStartPath}.
    * @param signal - cancellation for a superseded scan.
    * @returns directory entries and breadcrumb ancestry.
    */
   listDirectory(path?: string, signal?: AbortSignal): Promise<DirectoryListing>
+  /**
+   * The directory a directory-browsing surface opens at when the caller names
+   * no path: the current Session's workspace root, else the most recent
+   * Workspace, else the Host home. A Workspace root is a directory the
+   * operator already works in — typically outside the Host home subtree that
+   * a confined Host cannot list — while the home remains the answer when no
+   * Workspace exists yet.
+   * @returns an absolute Host directory path.
+   */
+  directoryStartPath(): string
   /**
    * Create a child directory.
    * @param path - existing parent directory.
@@ -418,9 +428,25 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   }
 
   async listDirectory(path?: string, signal?: AbortSignal): Promise<DirectoryListing> {
-    const result = await this.directoryPicker.list(path, signal)
+    const result = await this.directoryPicker.list(path ?? this.directoryStartPath(), signal)
     if (!result.ok) throw new DirectoryBrowseError(result.error)
     return result.value
+  }
+
+  directoryStartPath(): string {
+    const workspaces = this.workspaces.list.getSnapshot()
+    const current = this.mainReference?.sessionId
+    const currentRoot = current === undefined
+      ? undefined
+      : workspaces.items.find(item => item.sessionIds.includes(current))?.path
+    // The most recent Workspace is the one navigation itself falls back to
+    // when the current Session accounts to none; an empty ledger leaves the
+    // Host home, the only anchor the Client holds. `$host.home` is undefined
+    // only before the ready frame, and the Host resolves an empty path to its
+    // own home, so the two arms agree.
+    const recent = recentWorkspace(workspaces.items, this.sessions.list.getSnapshot().byId)
+    return currentRoot ?? workspaces.items.find(item => item.workspaceId === recent)?.path
+      ?? this.ctx.remote.$host.home ?? ''
   }
 
   async createDirectory(path: string, name: string): Promise<string> {
