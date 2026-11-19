@@ -79,7 +79,7 @@ import type { PiAiRequestHeaderContext } from './types.ts'
 
 export { PiAiAdapter } from './adapter.ts'
 export type { PiAiAdapterOptions } from './adapter.ts'
-export type { PiAiRequestHeaderContext } from './types.ts'
+export type { PiAiRequestHeaderContext, PiAiTerminalMessage } from './types.ts'
 export { Config } from './config.ts'
 export type {
   Options,
@@ -254,6 +254,9 @@ export function apply(ctx: Context, config: Config): void {
     resolveApiKey,
     auth,
     prepareHeaders: (request, headers) => ctx.waterfall('llm-pi-ai/request-headers', request, headers, () => headers),
+    // Synchronous emit, never a waterfall: observers see the native message and
+    // cannot replace it, so the model stream stays exactly what pi-ai produced.
+    onTerminalMessage: (detail) => { ctx.emit('llm-pi-ai/terminal-message', detail) },
     resolveAttachments: () => ctx.get('attachments'),
     resolveImageAccess: (attachments, ref) => resolveImageAttachmentAccess(
       attachments,

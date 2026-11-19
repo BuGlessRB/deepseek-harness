@@ -1303,3 +1303,56 @@ it.each([
   expect(JSON.stringify(server.requests[0])).toContain(`${expected.width}x${expected.height}`)
   expect(ref).toMatchObject({ width: 1146, height: 3657 })
 })
+
+describe('llm-pi-ai terminal message observation', () => {
+  it('publishes the native provider message before the terminal usage chunk', async () => {
+    const server = await mockServer([{ events: textEvents }])
+    const ctx = await harness(server.url)
+    const seen: { detail: LlmPiAi.PiAiTerminalMessage; chunkTypes: string[] }[] = []
+    const chunks: string[] = []
+    ctx.on('llm-pi-ai/terminal-message', (detail) => {
+      seen.push({ detail, chunkTypes: [...chunks] })
+    })
+    for await (const chunk of ctx.llm.stream({ provider: 'deepseek', model: 'deepseek-flash', messages: [] })) {
+      chunks.push(chunk.type)
+    }
+
+    expect(seen).toHaveLength(1)
+    expect(seen[0]?.detail.provider).toBe('deepseek')
+    expect(seen[0]?.detail.model).toBe('deepseek-flash')
+    // The harness usage vocabulary keeps only what the Session records; the
+    // native message is what a provider's own billing record survives in.
+    expect(seen[0]?.detail.message.usage).toMatchObject({ input: 3, output: 1, totalTokens: 4 })
+    // Published before the terminal usage and finish chunks reach the caller.
+    expect(seen[0]?.chunkTypes).not.toContain('usage')
+    expect(chunks.at(-2)).toBe('usage')
+    expect(chunks.at(-1)).toBe('finish')
+  })
+
+  it('publishes the failed message for an in-stream provider error', async () => {
+    const server = await mockServer([{ events: [
+      '{"choices":[{"delta":{"content":"partial"},"index":0,"finish_reason":null}]}',
+      '{"error":{"message":"provider exploded"}}',
+    ] }])
+    const ctx = await harness(server.url)
+    const seen: LlmPiAi.PiAiTerminalMessage[] = []
+    ctx.on('llm-pi-ai/terminal-message', (detail) => { seen.push(detail) })
+    const result = await assemble(ctx, { model: 'deepseek-flash', messages: [] })
+
+    expect(result.finish).toMatchObject({ kind: 'error' })
+    expect(seen).toHaveLength(1)
+    expect(seen[0]?.message.stopReason).toBe('error')
+  })
+
+  it('reports an observer failure as the request failure', async () => {
+    const server = await mockServer([{ events: textEvents }])
+    const ctx = await harness(server.url)
+    ctx.on('llm-pi-ai/terminal-message', () => { throw new Error('observer bug') })
+
+    // pi-ai delivers converter failures in-band, so an observer that throws on
+    // provider data ends the request with an error finish instead of silently
+    // succeeding with an unrecorded response.
+    const result = await assemble(ctx, { model: 'deepseek-flash', messages: [] })
+    expect(result.finish).toMatchObject({ kind: 'error', failure: { message: 'observer bug' } })
+  })
+})

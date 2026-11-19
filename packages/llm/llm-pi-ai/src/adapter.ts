@@ -65,7 +65,7 @@ import { conversationUpdates, createModels, getSupportedThinkingLevels } from '.
 import { toStreamChunks } from './stream.ts'
 import { bindThinkingToPrefix } from './prefix-binding.ts'
 import type { PrefixDigests } from './prefix-binding.ts'
-import type { PiAiRequestHeaderContext } from './types.ts'
+import type { PiAiRequestHeaderContext, PiAiTerminalMessage } from './types.ts'
 
 /**
  * Initially active declaration added to an Anthropic request whose projected
@@ -136,6 +136,16 @@ export interface PiAiAdapterOptions {
    * conversation report them again.
    */
   onThinkingOmitted?: (detail: { provider: string; model: string; count: number }) => void
+  /**
+   * Observe the provider's terminal pi-ai message for one stream call, before
+   * the terminal `usage` chunk leaves this adapter. A completion stream calls it
+   * once with pi-ai's finished message; an in-stream failure calls it with the
+   * failed one. Providers whose billing statistics pi-ai drops — such as
+   * OpenRouter's `usage` record — reach consumers only through this hook, so it
+   * receives the native message as pi-ai delivered it. Throwing here fails the
+   * stream, so an observer must never throw on provider data.
+   */
+  onTerminalMessage?: (detail: PiAiTerminalMessage) => void
 }
 
 /** The two auth injectables a pi-ai collection is built with. */
@@ -478,7 +488,20 @@ export class PiAiAdapter extends LlmAdapter {
         signal: watchdog.signal,
         headers: requestHeaders(profile.headers, options, model.baseUrl, this.config.prepareHeaders),
       })
-      const iterator = toStreamChunks(events, model.contextWindow, options.signal, model.id, digest)[Symbol.asyncIterator]()
+      const iterator = toStreamChunks(
+        events,
+        model.contextWindow,
+        options.signal,
+        model.id,
+        digest,
+        this.config.onTerminalMessage === undefined
+          ? undefined
+          : message => this.config.onTerminalMessage?.({
+            provider: options.provider,
+            model: options.model,
+            message,
+          }),
+      )[Symbol.asyncIterator]()
       let exhausted = false
       try {
         while (true) {

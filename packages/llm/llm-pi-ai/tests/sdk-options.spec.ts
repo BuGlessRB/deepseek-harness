@@ -73,3 +73,104 @@ describe('pi-ai SDK retry boundary', () => {
     })
   })
 })
+
+describe('pi-ai terminal message observer', () => {
+  it('observes the finished native message before the terminal usage chunk', async () => {
+    const usage = {
+      input: 3,
+      output: 1,
+      cacheRead: 2,
+      cacheWrite: 0,
+      reasoning: 0,
+      totalTokens: 6,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    }
+    const terminal = {
+      role: 'assistant',
+      api: 'openai-completions',
+      provider: 'local-gateway',
+      model: 'local-model',
+      content: [{ type: 'text', text: 'hello' }],
+      usage,
+      stopReason: 'stop',
+      timestamp: 1,
+    }
+    streamSimple.mockImplementation(() => (async function* () {
+      yield { type: 'start', partial: terminal }
+      yield { type: 'text_start', contentIndex: 0, partial: terminal }
+      yield { type: 'text_end', contentIndex: 0, content: 'hello', partial: terminal }
+      yield { type: 'done', reason: 'stop', message: terminal }
+    })())
+    const seen: { provider: string; model: string; message: unknown }[] = []
+    const chunks: StreamChunk[] = []
+    const adapter = new PiAiAdapter({
+      profiles: () => resolveProfiles({
+        'local-gateway': {
+          api: 'openai-completions',
+          baseURL: 'http://127.0.0.1:9/v1',
+          models: [{ id: 'local-model', contextWindow: 8192, maxTokens: 1024 }],
+        },
+      }),
+      resolveApiKey: () => Promise.resolve('test-key'),
+      auth: memoryAuth(),
+      onTerminalMessage: (detail) => { seen.push({ ...detail }) },
+    })
+
+    for await (const chunk of adapter.stream({ provider: 'local-gateway', model: 'local-model', messages: [] })) {
+      chunks.push(chunk)
+    }
+
+    expect(seen).toEqual([{ provider: 'local-gateway', model: 'local-model', message: terminal }])
+    // The Harness usage vocabulary keeps pi-ai's buckets; the native message is
+    // the only place a provider's own billing record survives.
+    expect(chunks.find(chunk => chunk.type === 'usage')).toEqual({
+      type: 'usage',
+      usage: { inputTokens: 3, outputTokens: 1, totalTokens: 6, cacheReadTokens: 2 },
+    })
+    expect(chunks.at(-1)?.type).toBe('finish')
+  })
+
+  it('observes the failed native message for an in-stream error', async () => {
+    const failed = {
+      role: 'assistant',
+      api: 'openai-completions',
+      provider: 'local-gateway',
+      model: 'local-model',
+      content: [],
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: 'error',
+      errorMessage: 'provider exploded',
+      timestamp: 1,
+    }
+    streamSimple.mockImplementation(() => (async function* () {
+      yield { type: 'start', partial: failed }
+      yield { type: 'error', reason: 'error', error: failed }
+    })())
+    const seen: unknown[] = []
+    const adapter = new PiAiAdapter({
+      profiles: () => resolveProfiles({
+        'local-gateway': {
+          api: 'openai-completions',
+          baseURL: 'http://127.0.0.1:9/v1',
+          models: [{ id: 'local-model', contextWindow: 8192, maxTokens: 1024 }],
+        },
+      }),
+      resolveApiKey: () => Promise.resolve('test-key'),
+      auth: memoryAuth(),
+      onTerminalMessage: (detail) => { seen.push(detail.message) },
+    })
+
+    for await (const _chunk of adapter.stream({ provider: 'local-gateway', model: 'local-model', messages: [] })) {
+      // drain
+    }
+
+    expect(seen).toEqual([failed])
+  })
+})
