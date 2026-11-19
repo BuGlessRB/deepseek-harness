@@ -159,9 +159,16 @@ export class SessionCommandController {
   }
 
   /**
-   * Validate and record one Session model selection; save the default in the background.
+   * Validate and record one Session model selection.
+   *
+   * The selection applies to this Session only. It deliberately does not touch
+   * the Agent default: that default is profile configuration, shared by every
+   * Session this Host starts, while a picker choice is one conversation's
+   * decision. Writing it here also rewrote the profile document, and the
+   * resulting configuration reload replaced the Host process — a Session-scoped
+   * choice must not restart the server it runs on.
    * @param request - Session identity and requested model selection.
-   * @returns the normalized selection recorded for the Session, without waiting for default persistence.
+   * @returns the normalized selection recorded for the Session.
    */
   async selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue> {
     const agent = await this.resolveAgent(request.sessionId)
@@ -177,11 +184,6 @@ export class SessionCommandController {
         }
         await this.ctx.llm.resolveCallConfig(selected)
         agent.model.select(selected)
-        void this.ctx.agentDefaultModel.saveSelection(selected).catch((error: unknown) => {
-          this.ctx.logger.warn(
-            `session-controller: model selection changed for the Session but the default was not saved: ${String(error)}`,
-          )
-        })
         return { selected: { ...selected } }
       } catch (error) {
         if (remoteErrorOf(error) !== undefined) throw error

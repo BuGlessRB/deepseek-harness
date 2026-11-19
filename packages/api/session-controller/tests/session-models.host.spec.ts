@@ -615,76 +615,59 @@ describe('Web session model selection', () => {
     await ctx.fiber.dispose()
   })
 
-  it('accepts consecutive model switches while default persistence is blocked', async () => {
+  it('applies consecutive model switches to the Session without rewriting the default', async () => {
     const { ctx, sessionId } = await harness()
-    const release = Promise.withResolvers<undefined>()
-    const saves: Promise<void>[] = []
-    const operations: Promise<unknown>[] = []
-    onTestFinished(async () => {
-      release.resolve(undefined)
-      await Promise.allSettled([...operations, ...saves])
-      await ctx.fiber.dispose()
-    })
+    const saves: unknown[] = []
+    onTestFinished(async () => { await ctx.fiber.dispose() })
     const remote = await createSessionTestRemote(ctx, {
       defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }),
-      saveDefaultModelSelection: () => {
-        saves.push(release.promise)
-        return release.promise
-      },
+      saveDefaultModelSelection: (selection) => { saves.push(selection) },
       cwd: '/tmp',
     })
 
     for (const model of ['deepseek-reasoner', 'deepseek-chat']) {
-      let returned = false
-      const operation = remote.selectModel({ sessionId, provider: 'deepseek-official', model })
-        .then((result) => { expectValue(result); returned = true })
-      operations.push(operation)
-      await expect.poll(() => returned).toBe(true)
+      expectValue(await remote.selectModel({ sessionId, provider: 'deepseek-official', model }))
       expect(currentSelection(ctx, sessionId)).toMatchObject({ provider: 'deepseek-official', model })
     }
-    expect(saves).toHaveLength(2)
+    // A picker choice is one conversation's decision. The Agent default is
+    // profile configuration shared by every future Session, so a selection must
+    // leave it alone — writing it rewrote the profile and restarted the Host.
+    expect(saves).toEqual([])
   })
 
-  it('saves an accepted selection as the default and survives a storage failure', async () => {
+  it('records a Session selection without changing the Agent default', async () => {
     const { ctx, sessionId } = await harness()
-    const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
-    onTestFinished(() => { warn.mockRestore() })
     const saved: unknown[] = []
-    let reject = false
+    onTestFinished(async () => { await ctx.fiber.dispose() })
     const remote = await createSessionTestRemote(ctx, {
       defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }),
       saveDefaultModelSelection: (selection) => {
         saved.push(selection)
-        return reject ? Promise.reject(new Error('read-only document')) : Promise.resolve()
+        // A profile document is read-only in some deployments; that must never
+        // matter here, because a Session selection does not write one.
+        return Promise.reject(new Error('read-only document'))
       },
       cwd: '/tmp',
     })
 
-    expectValue(await remote.selectModel(request({
+    const accepted = expectValue(await remote.selectModel(request({
       sessionId, provider: 'deepseek-official', model: 'deepseek-reasoner', reasoningEffort: 'max',
     })))
-    expect(saved).toEqual([
-      { provider: 'deepseek-official', model: 'deepseek-reasoner', reasoningEffort: 'max' },
-    ])
-
-    // A refused selection never becomes anyone's default.
-    await remote.selectModel(request({ sessionId, provider: 'missing', model: 'model' }))
-    expect(saved).toHaveLength(1)
-
-    // Storage failing is not the selection failing: the switch already applies
-    // to this session, so the call still succeeds.
-    reject = true
-    const stillAccepted = expectValue(await remote.selectModel(request({
-      sessionId, provider: 'deepseek-official', model: 'deepseek-chat',
-    })))
-    expect(stillAccepted.selected).toEqual({ provider: 'deepseek-official', model: 'deepseek-chat' })
+    expect(accepted.selected)
+      .toEqual({ provider: 'deepseek-official', model: 'deepseek-reasoner', reasoningEffort: 'max' })
     expect(currentSelection(ctx, sessionId))
+      .toEqual({ provider: 'deepseek-official', model: 'deepseek-reasoner', reasoningEffort: 'max' })
+
+    // A refused selection leaves the Session where it was.
+    await remote.selectModel(request({ sessionId, provider: 'missing', model: 'model' }))
+    expect(currentSelection(ctx, sessionId))
+      .toEqual({ provider: 'deepseek-official', model: 'deepseek-reasoner', reasoningEffort: 'max' })
+
+    // The default belongs to the profile, so neither the accepted nor the
+    // refused selection reaches it.
+    expect(saved).toEqual([])
+    expect(ctx.agentDefaultModel.currentSelection())
       .toEqual({ provider: 'deepseek-official', model: 'deepseek-chat' })
-    expect(saved[1]).toEqual({ provider: 'deepseek-official', model: 'deepseek-chat' })
-    await expect.poll(() => warn.mock.calls).toContainEqual([
-      'session-controller: model selection changed for the Session but the default was not saved: Error: read-only document',
-    ])
-    await ctx.fiber.dispose()
   })
 
   it('admits saved selections without querying the advisory model catalog', async () => {
