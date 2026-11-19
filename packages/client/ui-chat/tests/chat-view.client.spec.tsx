@@ -12,10 +12,10 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { useEffect, useMemo } from 'react'
 import { useMarkdownDelegate, type MarkdownDelegateFenceInfo, type MarkdownMenuTarget } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
-  AssistantMessageNode, ChatFlowHookContext, ChatFlowOwnerProps, ChatFlowSlotProps,
+  AssistantMessageNode, AssistantRowOwnerProps, ChatFlowHookContext, ChatFlowOwnerProps, ChatFlowSlotProps,
   ChatNode, ChatNodeHookContext, ChatNodeOwnerProps, ChatSnapshot, UserBeforeOwnerProps,
   ChatViewSlotProps, CommandNode, CompactionSummaryNode, ContextMessageNode, ConversationNode,
-  LegacyConversationSlice, ModelRetryNode, StartedToolCall, SteeringMessageNode,
+  LegacyConversationSlice, ModelRetryNode, ReasoningBodyOwnerProps, StartedToolCall, SteeringMessageNode,
   ToolCallBlock, ToolResultNode, TurnErrorNode, TurnMaxTokensNode,
   TranscriptViewMode, UserContentInput, UserMessageNode,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
@@ -273,6 +273,14 @@ type UserChainRenderer = typeof userChainDispatch<'conversation.chat.user.before
 type UserChainState = { readonly renderer: UserChainRenderer | undefined }
 type HarnessStandardProps = ChatViewSlotProps & PropsRenderFactories & Pick<React.ComponentProps<typeof AssistantNodeView>, 'fileMentions'>
 
+function isReasoningBodyOwner(owner: object): owner is ReasoningBodyOwnerProps {
+  return 'rawText' in owner && typeof owner.rawText === 'string'
+    && 'text' in owner && typeof owner.text === 'string'
+    && 'running' in owner && typeof owner.running === 'boolean'
+}
+function isAssistantRowOwner(owner: object): owner is AssistantRowOwnerProps {
+  return 'node' in owner && (owner.node as ChatNode).kind === 'assistant-step'
+}
 function isImageOwner(owner: object): owner is MessageImagesOwnerProps {
   return 'images' in owner && Array.isArray(owner.images)
     && 'loadImage' in owner && typeof owner.loadImage === 'function'
@@ -469,14 +477,29 @@ function makeHarness(
   const useOriginRenderer = bindSnapshotSelector(originRenderer)
   let nodeSlotOverride: NodeRenderer | undefined
   let imageSlotOverride: ImageRenderer | undefined
+  let assistantRowSlotOverride: ((owner: AssistantRowOwnerProps) => React.ReactNode) | undefined
   const renderImages = (name: string, owner: object, options?: { fallback?: React.ReactNode }) => {
     if ((name !== 'conversation.chat.user.images' && name !== 'conversation.chat.message.images') || !isImageOwner(owner)) {
       throw new Error(`Unexpected Chat image Slot: ${name}`)
     }
     return imageSlotOverride?.(owner) ?? options?.fallback ?? null
   }
-  const renderAssistantSlot: React.ComponentProps<typeof AssistantNodeView>['renderSlot'] = (name, owner, options) =>
-    name === 'conversation.chat.message.images' ? renderImages(name, owner, options) : renderReasoningSlot(name, owner, options)
+  // The three Assistant child Slots carry unrelated owner shares, so the harness
+  // dispatches on the key; each branch narrows the share its own Slot declares.
+  const renderAssistantSlot: React.ComponentProps<typeof AssistantNodeView>['renderSlot'] = (
+    name: string, owner: object, options?: { fallback?: React.ReactNode },
+  ) => {
+    switch (name) {
+      case 'conversation.chat.message.images': return renderImages(name, owner, options)
+      // The harness registers no assistant-row contributions; the seat still renders its list.
+      case 'conversation.chat.assistant-row':
+        if (!isAssistantRowOwner(owner)) throw new Error(`Unexpected Assistant row owner: ${name}`)
+        return assistantRowSlotOverride?.(owner) ?? null
+      case 'conversation.chat.reasoning.body':
+        if (!isReasoningBodyOwner(owner)) throw new Error(`Unexpected reasoning Body owner: ${name}`)
+        return renderReasoningSlot(name, owner, options)
+    }
+  }
   const renderNodeSlot: NodeRenderer = (key, owner, opts) => {
     if (nodeSlotOverride !== undefined) return nodeSlotOverride(key, owner, opts)
     return <HarnessChatNode compaction={compaction} standard={props} owner={owner}
@@ -627,6 +650,9 @@ function makeHarness(
     setFoldedReplies: (replies: FoldedReplies) => { foldedReplies.set(replies) },
     setNodeRenderer: (renderer: NodeRenderer) => { nodeSlotOverride = renderer },
     setImageRenderer: (renderer: ImageRenderer) => { imageSlotOverride = renderer },
+    setAssistantRowRenderer: (renderer: (owner: AssistantRowOwnerProps) => React.ReactNode) => {
+      assistantRowSlotOverride = renderer
+    },
     setOriginRenderer: (renderer: UserChainRenderer | undefined) => { originRenderer.set({ renderer }) },
   }
 }
@@ -2763,6 +2789,26 @@ describe('ChatView', () => {
     const branchButtons = view.getAllByRole('button', { name: '在新对话中分支' })
     expect(branchButtons).toHaveLength(2)
     expect(branchButtons.map(button => button.getAttribute('aria-disabled'))).toEqual([null, null])
+  })
+
+  it('renders assistant-row contributions beneath the reply without displacing its body', () => {
+    const h = makeHarness({ nodes: [user(1, 'question'), assistant(2, 'the answer', 1, 1)] })
+    h.setAssistantRowRenderer(owner => <span data-cost-row>{`cost for step ${String(owner.node.data.step)}`}</span>)
+    const view = render(<h.ChatView {...h.props} />)
+    const body = view.getByText('the answer').closest<HTMLElement>('[data-chat-flow-kind="assistant-step"]')!
+
+    expect(body.textContent).toContain('the answer')
+    expect(body.textContent).toContain('cost for step 1')
+    // The row sits inside the reply's own row, so a reply is never hidden by a contribution.
+    expect(body.querySelector('[data-cost-row]')).not.toBeNull()
+  })
+
+  it('leaves the reply unchanged when no assistant-row entry renders', () => {
+    const h = makeHarness({ nodes: [user(1, 'question'), assistant(2, 'the answer', 1, 1)] })
+    h.setAssistantRowRenderer(() => null)
+    const view = render(<h.ChatView {...h.props} />)
+
+    expect(view.getByText('the answer')).toBeTruthy()
   })
 
   it('keeps every Assistant reply visible while the whole Turn folds its process', () => {

@@ -1,5 +1,5 @@
 /** Chat-owned Slot declarations and composed component props. */
-import type { RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import type { MessageId } from '@deepseek-ai/dsh-llm/types'
 import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { PendingSubmission } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -66,6 +66,18 @@ export interface TurnTailOwnerProps {
 /** Owner currency of finalized-assistant actions. */
 export interface AssistantActionOwnerProps {
   messageId: MessageId
+}
+
+/**
+ * Owner currency of the row beneath one Assistant reply.
+ *
+ * Entries receive the reply Node they sit under, so a contribution reads the
+ * Step's own facts (turn, step, time) without subscribing to the Chat Node
+ * store. A fresh `id` adds an entry; an entry without content returns null.
+ */
+export interface AssistantRowOwnerProps {
+  /** The `assistant-step` Node this row sits beneath. */
+  readonly node: ChatNode<'assistant-step'>
 }
 
 /** Stable quota failure codes retained in the Session log; both raise the frame-wide notice. */
@@ -218,6 +230,28 @@ export interface ChatNodeInjected {
     disclosure: SlotHookFactory<'conversation.chat.node', UseDisclosure>
     groupAction: SlotHookFactory<'conversation.chat.node', UseGroupAction>
   }
+  /**
+   * Chat's own renderer for one `assistant-step` Node: the reply body with its
+   * markdown, reasoning disclosures, images and interrupted marker, and no
+   * action row.
+   *
+   * A third-party entry that takes the `assistant-step` seat replaces the
+   * shipped renderer, and with it the markdown pipeline the Host owns. Such an
+   * entry renders this component and seats its own row beneath it, so a reply
+   * keeps the Host's presentation exactly. Only that key receives it; other
+   * keys get `undefined`.
+   * @param props - the Node and the renderer inputs of this occurrence.
+   * @returns the reply body element.
+   */
+  renderAssistantBody?: (props: ChatNodeBodyProps) => ReactNode | undefined
+}
+
+/** Inputs Chat's assistant body renderer needs, as delivered to a `conversation.chat.node` entry. */
+export interface ChatNodeBodyProps {
+  /** The `assistant-step` Node this occurrence renders. */
+  readonly node: ChatNode<'assistant-step'>
+  /** The renderer-owned Node portion selected by the grouping Definition. */
+  readonly groupPart?: string | undefined
 }
 
 /**
@@ -510,6 +544,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * that entry. With no entries, the standard action row remains unchanged.
      */
     'conversation.chat.assistant-actions': { kind: 'list'; scope: 'session'; owner: AssistantActionOwnerProps }
+    /**
+     * Ordered rows beneath one Assistant reply, inside the reply's own row. Each
+     * entry receives the reply Node; a fresh `id` adds a row and reusing one
+     * replaces that entry. Chat always draws the reply body itself, so a
+     * contribution here can add to a reply but never hide it.
+     */
+    'conversation.chat.assistant-row': { kind: 'list'; scope: 'session'; owner: AssistantRowOwnerProps }
     /**
      * Frame-wide quota notice chain. The Chat-owned host in `shell.overlay`
      * offers the one live notice; the first entry whose selector claims its
