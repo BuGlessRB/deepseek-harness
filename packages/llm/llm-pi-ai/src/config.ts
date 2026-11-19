@@ -286,7 +286,9 @@ const chatTemplateKwarg: z<ChatTemplateKwargValue> = z.union([
   z.const(null),
   z.object({
     $var: z.union(CHAT_TEMPLATE_VARS).required(),
-    omitWhenOff: z.boolean(),
+    // pi-ai's generated type makes this `boolean | undefined`; the schema must
+    // produce the same value type or the profile narrows what providers accept.
+    omitWhenOff: z.boolean().required(false) as z<boolean | undefined>,
   }),
 ])
 

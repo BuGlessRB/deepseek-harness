@@ -273,6 +273,9 @@ const COMPLETIONS_COMPAT_GATE = {
   supportsMidConvoSystemMessages: 'withhold',
   supportsMidConvoToolAdditions: 'withhold',
   sessionAffinityFormat: 'withhold',
+  promptCacheKeyMode: 'withhold',
+  requiresNonNullAssistantContent: 'withhold',
+  requiresToolsWithToolHistory: 'withhold',
 } as const satisfies Record<keyof OpenAICompletionsCompat, CompatDisposition>
 
 /** Disposition of every `OpenAIResponsesCompat` field; a drift gate like the one above. */
@@ -288,6 +291,7 @@ const RESPONSES_COMPAT_GATE = {
   supportsExplicitPromptCacheMode: 'withhold',
   supportsMidConvoSystemMessages: 'withhold',
   supportsMidConvoEffort: 'withhold',
+  promptCacheKeyMode: 'withhold',
 } as const satisfies Record<keyof OpenAIResponsesCompat, CompatDisposition>
 
 /** Disposition of every `AnthropicMessagesCompat` field; a drift gate like the one above. */
@@ -305,6 +309,7 @@ const ANTHROPIC_COMPAT_GATE = {
   supportsMidConvoToolChanges: 'withhold',
   supportsMidConvoEffort: 'withhold',
   allowedFallbackModels: 'withhold',
+  supportsMessageThreads: 'withhold',
 } as const satisfies Record<keyof AnthropicMessagesCompat, CompatDisposition>
 
 /** Disposition of every `BedrockCompat` field; a drift gate like the one above. */
@@ -483,6 +488,24 @@ type AssertTrue<T extends true> = T
 type UpstreamCompat = OpenAICompletionsCompat & OpenAIResponsesCompat & AnthropicMessagesCompat & BedrockCompat & MistralConversationsCompat
 
 /**
+ * One compat type with `undefined` dropped from every optional member.
+ *
+ * pi-ai derives its compat types from a schema builder that spells an optional
+ * member `?: T | undefined`. Under `exactOptionalPropertyTypes` that also admits
+ * an explicit `undefined`, which a profile field declared `?: T` refuses — a
+ * difference with no meaning for configuration read from JSON, where an absent
+ * key and an `undefined` value are the same input. Comparing the two spellings
+ * directly would report that spelling as drift and hide real drift behind it.
+ *
+ * Only `undefined` is removed; `null` stays, because a provider that accepts an
+ * explicit `null` is a real capability a profile must not quietly lose.
+ */
+type WithoutExplicitUndefined<T> = { [K in keyof T]?: Exclude<T[K], undefined> }
+
+/** Upstream's offered compat fields, normalised for the comparison below. */
+type UpstreamOfferedCompat = WithoutExplicitUndefined<Partial<Pick<UpstreamCompat, OfferedCompatField>>>
+
+/**
  * Proof that each documented field carries its upstream type, not a hand-copied
  * restatement of it. The name gates above pin *which* fields exist; this pins
  * their types, in both directions because each catches a different drift. A
@@ -492,8 +515,8 @@ type UpstreamCompat = OpenAICompletionsCompat & OpenAIResponsesCompat & Anthropi
  * union would otherwise leave configuration silently behind.
  */
 export type EveryProfileFieldMatchesUpstream = AssertTrue<
-  PiAiCompatProfile extends Partial<Pick<UpstreamCompat, OfferedCompatField>>
-    ? Partial<Pick<UpstreamCompat, OfferedCompatField>> extends PiAiCompatProfile ? true : false
+  WithoutExplicitUndefined<PiAiCompatProfile> extends UpstreamOfferedCompat
+    ? UpstreamOfferedCompat extends WithoutExplicitUndefined<PiAiCompatProfile> ? true : false
     : false
 >
 
