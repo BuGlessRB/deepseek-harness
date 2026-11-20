@@ -32,15 +32,53 @@ function indexOf(event: Record<string, unknown>): number {
   return event.index as number
 }
 
+/** Documented Messages counters, which are already disjoint. */
+const MESSAGES_COUNTERS = {
+  input_tokens: 'inputTokens',
+  output_tokens: 'outputTokens',
+  cache_read_input_tokens: 'cacheReadTokens',
+  cache_creation_input_tokens: 'cacheWriteTokens',
+} as const
+
+function counter(value: unknown, wire: string): number | undefined {
+  if (value === undefined) return undefined
+  if (!Number.isSafeInteger(value) || (value as number) < 0) return malformed(`invalid ${wire}`)
+  return value as number
+}
+
+/** Normalize the OpenAI-shaped counters a Messages-compatible gateway forwards
+ * instead of the documented ones. `prompt_tokens` is the aggregate prompt count
+ * that includes cache hits, so the uncached remainder is what remains after the
+ * read count.
+ * @param fields - one wire `usage` object.
+ * @returns the disjoint buckets this object reports in the OpenAI vocabulary.
+ */
+function openAiUsage(fields: Record<string, unknown>): Partial<TokenUsage> {
+  const prompt = counter(fields.prompt_tokens, 'prompt_tokens')
+  const completion = counter(fields.completion_tokens, 'completion_tokens')
+  const miss = counter(fields.prompt_cache_miss_tokens, 'prompt_cache_miss_tokens')
+  const details = fields.prompt_tokens_details === undefined ? undefined : object(fields.prompt_tokens_details)
+  const read = counter(fields.prompt_cache_hit_tokens, 'prompt_cache_hit_tokens')
+    ?? counter(details?.cached_tokens, 'prompt_tokens_details.cached_tokens')
+  const inputTokens = prompt === undefined ? miss : prompt - (read ?? 0)
+  if (inputTokens !== undefined && inputTokens < 0) return malformed('prompt_tokens below its cache-read count')
+  return {
+    ...inputTokens === undefined ? {} : { inputTokens },
+    ...completion === undefined ? {} : { outputTokens: completion },
+    ...read === undefined ? {} : { cacheReadTokens: read },
+  }
+}
+
 function updateUsage(usage: TokenUsage, raw: unknown): void {
   const fields = object(raw)
-  const keys = { input_tokens: 'inputTokens', output_tokens: 'outputTokens', cache_read_input_tokens: 'cacheReadTokens', cache_creation_input_tokens: 'cacheWriteTokens' } as const
-  for (const [wire, local] of Object.entries(keys)) {
-    const value = fields[wire]
-    if (value === undefined) continue
-    if (!Number.isSafeInteger(value) || (value as number) < 0) return malformed(`invalid ${wire}`)
-    usage[local] = value as number
+  const messages: Partial<TokenUsage> = {}
+  for (const [wire, local] of Object.entries(MESSAGES_COUNTERS)) {
+    const value = counter(fields[wire], wire)
+    if (value !== undefined) messages[local] = value
   }
+  // The documented counters win when one object carries both vocabularies, so a
+  // gateway's upstream usage still lands instead of reporting none.
+  Object.assign(usage, openAiUsage(fields), messages)
 }
 
 function startBlock(event: Record<string, unknown>, index: number): Block {

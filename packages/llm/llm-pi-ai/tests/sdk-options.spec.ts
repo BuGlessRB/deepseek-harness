@@ -125,7 +125,7 @@ describe('pi-ai terminal message observer', () => {
     // the only place a provider's own billing record survives.
     expect(chunks.find(chunk => chunk.type === 'usage')).toEqual({
       type: 'usage',
-      usage: { inputTokens: 3, outputTokens: 1, totalTokens: 6, cacheReadTokens: 2 },
+      usage: { inputTokens: 3, outputTokens: 1, totalTokens: 6, cacheReadTokens: 2, cacheWriteTokens: 0 },
     })
     expect(chunks.at(-1)?.type).toBe('finish')
   })

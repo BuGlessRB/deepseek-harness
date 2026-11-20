@@ -34,6 +34,58 @@ describe('Messages stream', () => {
     expect(result.output.filter(chunk => chunk.type === 'block-start').map(chunk => chunk.index)).toEqual([0, 1])
   })
 
+  it('normalizes OpenAI-shaped gateway counters into disjoint usage', async () => {
+    const result = await assemble(translate(events([
+      { ...start, message: { usage: { prompt_tokens: 100, completion_tokens: 1, prompt_cache_hit_tokens: 0 } } },
+      ...textEvents.slice(1, 4),
+      { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { prompt_tokens: 100, completion_tokens: 5, prompt_tokens_details: { cached_tokens: 90 } } },
+      { type: 'message_stop' },
+    ]), MODEL))
+    expect(result.output.at(-2)).toEqual({ type: 'usage', usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 90, totalTokens: 105 } })
+  })
+
+  it('reads the gateway cache-miss counter when no prompt total arrives', async () => {
+    const result = await assemble(translate(events([
+      { ...start, message: { usage: { prompt_cache_miss_tokens: 10, prompt_cache_hit_tokens: 90, completion_tokens: 1 } } },
+      ...textEvents.slice(1, 4),
+      { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { completion_tokens: 5 } },
+      { type: 'message_stop' },
+    ]), MODEL))
+    expect(result.output.at(-2)).toEqual({ type: 'usage', usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 90, totalTokens: 105 } })
+  })
+
+  it('keeps the documented counters when one usage object carries both vocabularies', async () => {
+    const result = await assemble(translate(events([
+      { ...start, message: { usage: {
+        input_tokens: 12, cache_read_input_tokens: 30, prompt_tokens: 500, prompt_cache_hit_tokens: 400, completion_tokens: 1,
+      } } },
+      ...textEvents.slice(1, 4),
+      { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 5 } },
+      { type: 'message_stop' },
+    ]), MODEL))
+    expect(result.output.at(-2)).toEqual({ type: 'usage', usage: { inputTokens: 12, outputTokens: 5, cacheReadTokens: 30, totalTokens: 47 } })
+  })
+
+  it('takes a gateway prompt total that reports no cache counters as fully uncached', async () => {
+    const result = await assemble(translate(events([
+      { ...start, message: { usage: { prompt_tokens: 100, completion_tokens: 1 } } },
+      ...textEvents.slice(1, 4),
+      { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { prompt_tokens: 100, completion_tokens: 5 } },
+      { type: 'message_stop' },
+    ]), MODEL))
+    expect(result.output.at(-2)).toEqual({ type: 'usage', usage: { inputTokens: 100, outputTokens: 5, totalTokens: 105 } })
+  })
+
+  it('keeps a documented cache zero instead of omitting the bucket', async () => {
+    const result = await assemble(translate(events([
+      { ...start, message: { usage: { input_tokens: 12, output_tokens: 1, cache_read_input_tokens: 0 } } },
+      ...textEvents.slice(1, 4),
+      { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 5 } },
+      { type: 'message_stop' },
+    ]), MODEL))
+    expect(result.output.at(-2)).toEqual({ type: 'usage', usage: { inputTokens: 12, outputTokens: 5, cacheReadTokens: 0, totalTokens: 17 } })
+  })
+
   it.each(['end_turn', 'stop_sequence'])('maps %s and ignores forward-compatible envelope events', async (reason) => {
     const result = await chunks(translate(events([start, { type: 'future_event' }, ...textEvents.slice(1, 4), ...end(reason)]), MODEL))
     expect(result.at(-1)).toMatchObject({ reason: { kind: 'stop' } })
@@ -81,6 +133,10 @@ describe('Messages stream', () => {
     [start, { type: 'message_stop' }],
     [start, textEvents[1], ...end()],
     [start, { type: 'message_delta', delta: {}, usage: { input_tokens: -1 } }],
+    [start, { type: 'message_delta', delta: {}, usage: { prompt_tokens: -1 } }],
+    [start, { type: 'message_delta', delta: {}, usage: { prompt_cache_hit_tokens: 1.5 } }],
+    [start, { type: 'message_delta', delta: {}, usage: { prompt_tokens: 5, prompt_cache_hit_tokens: 6 } }],
+    [start, { type: 'message_delta', delta: {}, usage: { prompt_tokens_details: 5 } }],
     [start, { type: 'message_delta', delta: { stop_reason: 'end_turn' } }, textEvents[1]],
     [start, { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: '', name: 'read', input: {} } }],
     [start, { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'x', name: 'read', input: [] } }],
