@@ -237,6 +237,12 @@ export type PiAiReasoningEfforts = Partial<Record<ModelThinkingLevel, string | n
  * sets for a named vendor. Reaching for one of those on a hand-declared route
  * means configuring a provider that should have been named as a catalog route
  * instead, where the installed entry carries the right value already.
+ *
+ * {@link COMPLETIONS_COMPAT_GATE} offers the two mid-conversation switches
+ * anyway: a catalog route answers for a model pi-ai ships, while a preset id on
+ * an aggregator or a private gateway's model is served by an endpoint no
+ * catalog entry describes, so only the deployment can state whether that
+ * endpoint takes a further system message or further tools mid-conversation.
  */
 type CompatDisposition = 'offer' | 'withhold'
 
@@ -270,8 +276,8 @@ const COMPLETIONS_COMPAT_GATE = {
   zaiToolStream: 'withhold',
   supportsOpenAIGrammarTools: 'withhold',
   sendSessionAffinityHeaders: 'withhold',
-  supportsMidConvoSystemMessages: 'withhold',
-  supportsMidConvoToolAdditions: 'withhold',
+  supportsMidConvoSystemMessages: 'offer',
+  supportsMidConvoToolAdditions: 'offer',
   sessionAffinityFormat: 'withhold',
   promptCacheKeyMode: 'withhold',
   requiresNonNullAssistantContent: 'withhold',
@@ -463,6 +469,19 @@ export interface PiAiCompatProfile {
   allowEmptySignature?: boolean
   /** Whether the endpoint accepts Anthropic strict tool schemas; `anthropic-messages`. */
   supportsStrictTools?: boolean
+  /**
+   * Whether the endpoint reads the latest `system` message at any position of
+   * `messages` as the complete prompt, which is what lets a changed prompt
+   * append after cached history instead of replacing the leading one.
+   * `openai-completions`.
+   */
+  supportsMidConvoSystemMessages?: boolean
+  /**
+   * Whether the endpoint accepts a `system` message declaring further tools
+   * mid-conversation; effective only with `supportsMidConvoSystemMessages`.
+   * `openai-completions`.
+   */
+  supportsMidConvoToolAdditions?: boolean
 }
 
 /** Compile-time constraint that `T` is `never`. */

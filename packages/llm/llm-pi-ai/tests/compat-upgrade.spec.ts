@@ -51,18 +51,27 @@ describe('pi-ai gateway compatibility declarations', () => {
   })
 
   it.each([
-    'supportsMidConvoEffort', 'allowedFallbackModels', 'supportsMidConvoSystemMessages',
-    'supportsMidConvoToolAdditions', 'supportsMidConvoToolChanges', 'sessionAffinityFormat',
+    'supportsMidConvoEffort', 'allowedFallbackModels',
+    'supportsMidConvoToolChanges', 'sessionAffinityFormat',
   ])('withholds catalog-owned %s', (field) => {
     expect(() => resolved({ [field]: true }, 'anthropic-messages'))
       .toThrow(/which is not configurable here/)
   })
 
-  it('withholds Mistral conversation capabilities', () => {
+  it.each(['supportsMidConvoSystemMessages', 'supportsMidConvoToolAdditions'])(
+    'offers mid-conversation switch %s on Chat Completions only',
+    (field) => {
+      expect(resolved({ [field]: true })).toMatchObject({ [field]: true })
+      expect(() => resolved({ [field]: true }, 'anthropic-messages'))
+        .toThrow(/no model on the route speaks a protocol that takes it/)
+    },
+  )
+
+  it('refuses Mistral conversation capabilities on a protocol that does not offer them', () => {
     expect(() => resolveProfiles({
-      mistral: { compat: { supportsMidConvoSystemMessages: true } as never },
+      mistral: { compat: { supportsMidConvoSystemMessages: true } },
     }))
-      .toThrow(/which is not configurable here/)
+      .toThrow(/no model on the route speaks a protocol that takes it/)
   })
 
   it('keeps generic additions absent unless configured', () => {

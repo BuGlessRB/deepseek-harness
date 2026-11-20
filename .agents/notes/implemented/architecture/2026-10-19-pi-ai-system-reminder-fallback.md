@@ -14,7 +14,9 @@ Pi-ai concatenates later system messages into the initial prompt for models with
 
 The pi-ai adapter uses the prepared model's existing `supportsMidConvoSystemMessages` capability mapping. It preserves native system messages on capable models and converts each non-empty later system message into a user message wrapped in `<system-reminder>` otherwise, before pi-ai receives the context. Leading system messages remain in the initial prompt. System text blocks are trimmed and separated by blank lines. Message order and repeated updates remain intact, and durable messages retain their original roles.
 
-The fallback belongs to the adapter because it depends on the selected protocol capability. The system service captures source deltas and the loop commits them; neither consolidates instructions solely because the route lacks native support.
+
+
+The fallback belongs to the adapter because it depends on the selected protocol capability, which the adapter reads and never adds: on `openai-completions` a deployment states the capability itself through `compat` ([configured claims](2026-11-20-configured-conversation-update-claims.md)). Prompt admission remains owned by the agent loop, which consolidates system-prompt updates on routes without native support; this fallback only handles later system messages present in the supplied request.
 
 ## Alternatives considered
 

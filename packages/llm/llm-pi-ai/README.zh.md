@@ -116,7 +116,7 @@ profile 的 `models` 列表会替换而非扩展路由的已安装目录；每�
 
 确切模型元数据将 `reasoning.efforts` 按可选强度从低到高排列。配置函数可从该列表中选择，再由 `prepareCall()` 校验具体强度。适配器只接收解析后的控制项。选择 `off` 不保证禁用推理：以省略推理字段表达该值的协议会沿用网关默认行为。所选等级下产生的推理 token 都计入该请求的输出上限。
 
-对于自托管 Chat Completions 端点，`thinkingTokenBudgetField` 选择推理预算参数，`vllmPriority` 在服务端启用优先级调度时设置整数调度优先级。模板参数接受 `$var: thinking.budget`。`openai-responses` 网关可设置 `supportsMaxOutputTokens: false` 来省略 `max_output_tokens`；Azure 与 Codex 传输会忽略这个共享兼容字段。这些控制均需显式启用；目录拥有的 Anthropic effort 和回退能力不是可配置开关。
+对于自托管 Chat Completions 端点，`thinkingTokenBudgetField` 选择推理预算参数，`vllmPriority` 在服务端启用优先级调度时设置整数调度优先级。模板参数接受 `$var: thinking.budget`。`openai-responses` 网关可设置 `supportsMaxOutputTokens: false` 来省略 `max_output_tokens`；Azure 与 Codex 传输会忽略这个共享兼容字段。`openai-completions` 路由通过 `supportsMidConvoSystemMessages`（端点把后续的 `system` 消息读作有效提示词）和 `supportsMidConvoToolAdditions`（端点接受对话中的后续工具声明）声明对话能力。这两个标志让路由把变化后的提示词或新增工具追加到已缓存历史之后，而不是重写开头的声明，并且都代表部署方对自身端点的声明。这些控制均需显式启用；目录拥有的 Anthropic effort 和回退能力不是可配置开关。
 
 ### 运行时更改配置
 
@@ -231,7 +231,7 @@ Anthropic 可以将每个已签名 thinking 块绑定到生成它时的请求前
 
 #### 模型看到什么
 
-所选目录模型会收到系统消息文本、对话历史、工具以及支持的采样字段。目录模型声明 `supportsMidConvoSystemMessages` 时，适配器按历史顺序保留后续系统消息。否则，适配器在传给 pi-ai 之前，将每条非空的后续系统消息转换为以 `<system-reminder>` 包裹的用户消息。包裹文本不会赋予系统角色优先级。单次调用的 `GenerateOptions.system` 放在初始历史提示词之前。重复的系统消息仍会重复发送；空系统消息会被跳过，不会丢弃之前的文本。工具更新能力选择共享的历史声明投影；pi-ai 接收初始可用工具，以及按开发者消息分组的新增和受支持的移除更新。当包含工具更新的 Anthropic 请求中所有投影后的声明均为延迟加载时，初始可用工具为一个占位工具 `DeferredToolPlaceholder`，其描述要求模型永不调用它；若被调用，会得到普通的未知工具结果。Anthropic 在更新消息中以内联方式接收后续工具定义。回放会保留工具调用命名空间，以支持动态加载的 Responses 工具。每张保留图片前都会有文本，注明其完整附件 id 与实际请求尺寸。当前执行文件系统可以映射附件提供方的宿主对象时，该文本还会携带只读规范化对象路径，并警告规范化或请求投影可能缩放或重新编码上传内容。日志中的图片省略决策选中的每个出现位置都会在替换文本中保留自己的身份与当前已解析访问方式，其规范化附件不会读取或变换。当保留的出现位置数量仍超过路由的 `maxRequestImages`，或其精确 base64 载荷超过 `maxRequestImageBytes` 时，调用以 `IMAGE_OFFLOAD_REQUIRED` 失败，由 `dsh-compaction-image-offload` 用 `image/offload` 事件记录所选位置并重试步骤。默认每张编码图片最多为 0.75 MiB，20 张达到上限的图片可以放入 20 MiB base64 总预算。较小的图片可以保留更多，但仍受数量上限限制。提供方原生回放元数据只在适配器针对历史内容校验通过后恢复。在 Anthropic Messages 路由上，如果回放响应的请求前缀自生成后发生变化（例如经过压缩），该响应会丢失 thinking 块；其文本和工具调用保留。 `imageRequestTarget(provider, model, image)` 向截图调用方提供最大尺寸和字节上限；`readImageRequest` 返回执行字节限制后的实际编码尺寸。
+所选目录模型会收到系统消息文本、对话历史、工具以及支持的采样字段。模型声明 `supportsMidConvoSystemMessages` 时，适配器按历史顺序保留后续系统消息。否则，适配器在传给 pi-ai 之前，将每条非空的后续系统消息转换为以 `<system-reminder>` 包裹的用户消息。包裹文本不会赋予系统角色优先级。单次调用的 `GenerateOptions.system` 放在初始历史提示词之前。重复的系统消息仍会重复发送；空系统消息会被跳过，不会丢弃之前的文本。工具更新能力选择共享的历史声明投影；pi-ai 接收初始可用工具，以及按开发者消息分组的新增和受支持的移除更新。当包含工具更新的 Anthropic 请求中所有投影后的声明均为延迟加载时，初始可用工具为一个占位工具 `DeferredToolPlaceholder`，其描述要求模型永不调用它；若被调用，会得到普通的未知工具结果。Anthropic 在更新消息中以内联方式接收后续工具定义。回放会保留工具调用命名空间，以支持动态加载的 Responses 工具。每张保留图片前都会有文本，注明其完整附件 id 与实际请求尺寸。当前执行文件系统可以映射附件提供方的宿主对象时，该文本还会携带只读规范化对象路径，并警告规范化或请求投影可能缩放或重新编码上传内容。日志中的图片省略决策选中的每个出现位置都会在替换文本中保留自己的身份与当前已解析访问方式，其规范化附件不会读取或变换。当保留的出现位置数量仍超过路由的 `maxRequestImages`，或其精确 base64 载荷超过 `maxRequestImageBytes` 时，调用以 `IMAGE_OFFLOAD_REQUIRED` 失败，由 `dsh-compaction-image-offload` 用 `image/offload` 事件记录所选位置并重试步骤。提供方原生回放元数据只在适配器针对历史内容校验通过后恢复。在 Anthropic Messages 路由上，如果回放响应的请求前缀自生成后发生变化（例如经过压缩），该响应会丢失 thinking 块；其文本和工具调用保留。 `imageRequestTarget(provider, model, image)` 向截图调用方提供与模型请求一致的图片尺寸和字节目标；不缩放图片的适配器保留归一化后的原图。
 
 #### Token 影响
 
@@ -277,7 +277,7 @@ pi-ai 事件变成 harness 的推理、文本、工具调用、用量与 finish 
 - **未认证路由取决于其协议**——不点名凭据的路由解析为已配置但无密钥，但 pi-ai 的 OpenAI 兼容实现仍要求 API 密钥或 `Authorization` 标头，因此无密钥本地服务器需要由 `apiKeyEnv` 引用或 `headers` 中的 `Authorization` 条目提供的占位凭据。pi-ai 的 Gemini 实现会拒绝没有 API 密钥的请求，因此 `google-generative-ai` 路由始终需要 `apiKeyEnv`，其值以 `x-goog-api-key` 发送。
 - **Gemini 只接受四个推理等级**——在 `google-generative-ai` 上，pi-ai 的 Gemini 实现只发送 `minimal`、`low`、`medium` 或 `high`（不区分大小写），`reasoningEfforts` 的值为其他名称时请求失败；[模型页](../../client/ui-settings-models/README.zh.md)只为 `api` 指定该协议的路由提供这些档位。不带等级的请求（包括 `off`）会发送 pi-ai 的关闭思考配置，无法关闭思考的模型（例如 Gemini 2.5 Pro）可能拒绝该请求。
 - **不支持 `GenerateOptions.stop`**——pi-ai 的通用流式选项无法跨提供方保证停止序列行为。
-- **对话更新支持只来自已安装的 pi-ai 目录**——原生系统与工具更新需要目录模型的对话中 compat 标志，profile 不能设置这些标志。手工声明的路由与未标记的模型会以用户角色提醒接收后续系统文本，并在每次请求开头接收完整的当前工具列表。
+- **对话更新需要对话中能力声明**——原生系统与工具更新需要模型的对话中 compat 标志：在 `openai-completions` 路由上为 `supportsMidConvoSystemMessages` 与 `supportsMidConvoToolAdditions`，由 profile 自行声明；其他协议沿用目录自带的标志。两者都未声明的模型会以用户角色提醒接收后续系统文本，并在每次请求开头接收完整的当前工具列表。该声明不会被验证，因此拒绝后续系统消息或后续工具声明的端点会在该请求中途失败。
 - **图片只在 user 与工具结果消息中被接受**——system、developer 或 assistant 历史中的图片在两条转换路径上都会以 `UNSUPPORTED_CONTENT` 失败。
 - **提供方 HTTP 状态不可用**——pi-ai 错误事件不跨提供方暴露稳定 HTTP 状态，失败按错误文本分类。信息以 4xx 或 5xx 状态码开头时（Anthropic 与 OpenAI SDK 的错误即如此），状态码规则只读取该状态码。其他格式（如 `Mistral API error (<status>): <body>`）仍会匹配信息中任意位置引用的状态码；配额、限流与无效请求的措辞规则读取整条信息，因此网关在 5xx 响应体中转述上游的 `insufficient_quota` 或 `invalid_request_error` 时，会分类为不重试的 `QUOTA` 或 `INVALID_REQUEST`。
 - **重试策略由提供方自有，而非 SDK 重试**——pi-ai SDK 重试保持禁用，因此持久 agent（智能体）步骤与 `llm/retry` 事件拥有每个可见尝试，直接 `ctx.llm.stream()` 调用仍是单次尝试。

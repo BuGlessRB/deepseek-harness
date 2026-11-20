@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-11-20-configured-conversation-update-claims.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-11-20-configured-conversation-update-claims.md
+/agent-note-claiming-conversation-updates-on-a-declared-chat-completions-route:
+  en: e75fa770174215dc
+  zh: 73215e2e5f6ea8a1
+/agent-note-claiming-conversation-updates-on-a-declared-chat-completions-route/problem:
+  en: 0d7d697ce9743089
+  zh: 6b9e9d5c77052384
+/agent-note-claiming-conversation-updates-on-a-declared-chat-completions-route/decision:
+  en: 5218f9d8a898cd80
+  zh: 38db15137cc03dbe
+/agent-note-claiming-conversation-updates-on-a-declared-chat-completions-route/alternatives-considered:
+  en: 860de65c3b52547f
+  zh: dbac1b069d8fb176
+/agent-note-claiming-conversation-updates-on-a-declared-chat-completions-route/testing:
+  en: 8fa029de3c768735
+  zh: 9bd7bfccc6a095db
+/agent-note-claiming-conversation-updates-on-a-declared-chat-completions-route/consequences:
+  en: 927d35895eef697a
+  zh: 686c03b9bc6d676a

@@ -6,7 +6,7 @@ import LlmRuntime, { createAssistantMessage, createDeveloperMessage, createMessa
 import type { GenerateOptions, ToolSchema, ToolUpdate } from '@deepseek-ai/dsh-llm'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import type { Api, Model } from '@earendil-works/pi-ai'
-import { resolveProfiles } from '../src/config.ts'
+import { resolveProfiles, type PiAiProviderProfile } from '../src/config.ts'
 import { memoryAuth } from './auth-double.ts'
 import { conversationUpdates } from '../src/models.ts'
 import { assemble } from './assemble.ts'
@@ -49,11 +49,31 @@ describe('conversation capability mapping', () => {
   ])('does not enable updates without system support: %j', (compat) => {
     expect(conversationUpdates(model('openai-completions', compat))).toEqual({})
   })
+
+  it('derives both modes from a declared route no catalog describes', () => {
+    const route = resolveProfiles({ gateway: {
+      api: 'openai-completions',
+      baseURL: 'https://gateway.test/v1',
+      models: [{
+        id: '@preset/agent',
+        compat: { supportsMidConvoSystemMessages: true, supportsMidConvoToolAdditions: true },
+      }],
+    } }).get('gateway')
+    expect(conversationUpdates(route?.piProvider?.getModels()[0] as Model<Api>)).toEqual({
+      systemPromptUpdate: 'in-history', toolUpdate: 'addition-only',
+    })
+  })
 })
 
 afterEach(closeMockServers)
 
-async function send(provider: string, modelId: string, options: Omit<GenerateOptions, 'provider' | 'model'>, apiKey = 'fixture-key') {
+async function send(
+  provider: string,
+  modelId: string,
+  options: Omit<GenerateOptions, 'provider' | 'model'>,
+  apiKey = 'fixture-key',
+  profile: Partial<PiAiProviderProfile> = {},
+) {
   const server = await mockServer([{ status: 401, body: JSON.stringify({ error: { message: 'fixture rejection' } }) }])
   const ctx = new Context()
   const runtime = ctx.plugin(LlmRuntime)
@@ -61,7 +81,9 @@ async function send(provider: string, modelId: string, options: Omit<GenerateOpt
     await runtime
     // The serializer requires an API key even though the local server does not authenticate.
     const adapter = new LlmPiAi.PiAiAdapter({
-      profiles: () => resolveProfiles({ [provider]: { baseURL: server.url, apiKeyEnv: 'PI_CONVERSATION_TEST_KEY', transport: 'sse' } }),
+      profiles: () => resolveProfiles({ [provider]: {
+        baseURL: server.url, apiKeyEnv: 'PI_CONVERSATION_TEST_KEY', transport: 'sse', ...profile,
+      } }),
       resolveApiKey: () => Promise.resolve(apiKey),
       auth: memoryAuth(),
     })
@@ -229,6 +251,33 @@ describe('serialized conversation updates', () => {
     ])
     expect(JSON.stringify(requests[0])).not.toContain('Instruction one.')
     expect(JSON.stringify(requests[0])).not.toContain('additional_tools')
+  })
+})
+
+describe('declared routes claiming conversation updates', () => {
+  const claiming = {
+    api: 'openai-completions',
+    models: [{ id: 'declared', compat: { supportsMidConvoSystemMessages: true, supportsMidConvoToolAdditions: true } }],
+  }
+
+  it('appends a changed prompt and added tools after the cached history', async () => {
+    const update = addition()
+    const { requests } = await send('gateway', 'declared', {
+      messages: [system('initial'), user('first'), system('updated'), user('next'), update],
+      tools: [baseline, added],
+      toolHistory: { tools: [baseline], updates: [{ messageId: update.id, additions: [added] }] },
+    }, 'fixture-key', claiming)
+    expect(requests).toHaveLength(1)
+    expect(requests[0]).toMatchObject({
+      messages: [
+        { role: 'system', content: 'initial' },
+        { role: 'user', content: 'first' },
+        { role: 'system', content: 'updated' },
+        { role: 'user', content: 'next' },
+        { role: 'system', tools: [{ type: 'function', function: { name: 'search' } }] },
+        { role: 'system', content: 'Instruction one.\nInstruction two.' },
+      ],
+    })
   })
 })
 

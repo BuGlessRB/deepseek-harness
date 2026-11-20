@@ -2560,6 +2560,19 @@ export interface PiAiCompatProfile {
   allowEmptySignature?: boolean
   /** Whether the endpoint accepts Anthropic strict tool schemas; `anthropic-messages`. */
   supportsStrictTools?: boolean
+  /**
+   * Whether the endpoint reads the latest `system` message at any position of
+   * `messages` as the complete prompt, which is what lets a changed prompt
+   * append after cached history instead of replacing the leading one.
+   * `openai-completions`.
+   */
+  supportsMidConvoSystemMessages?: boolean
+  /**
+   * Whether the endpoint accepts a `system` message declaring further tools
+   * mid-conversation; effective only with `supportsMidConvoSystemMessages`.
+   * `openai-completions`.
+   */
+  supportsMidConvoToolAdditions?: boolean
 }
 
 /** One request modality a pi-ai model may accept. */
