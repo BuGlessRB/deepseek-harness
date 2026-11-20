@@ -8,7 +8,7 @@
  */
 
 import { callConfigEquals } from '@deepseek-ai/dsh-llm'
-import type { ToolSchema } from '@deepseek-ai/dsh-llm'
+import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import type { EpochHeader, SessionEvent } from './types.ts'
 
 /**
@@ -29,13 +29,9 @@ export function canonicalHeader(header: EpochHeader): EpochHeader {
   }
 }
 
-/** Canonical JSON equality for tool schemas assembled through the same path. */
-function sameSchema(a: ToolSchema, b: ToolSchema): boolean {
-  return JSON.stringify(a) === JSON.stringify(b)
-}
-
 /**
- * Field-wise equality over canonical headers. Tool schemas compare in order.
+ * Field-wise equality over canonical headers. Tool schemas compare structurally
+ * in array order, so a schema that only reordered its object keys still matches.
  * @param a - one canonical header.
  * @param b - the other.
  * @returns whether config, adapter defaults, and tools all match.
@@ -48,7 +44,7 @@ export function headerEquals(a: EpochHeader, b: EpochHeader): boolean {
   ) return false
   const at = a.tools ?? []
   const bt = b.tools ?? []
-  return at.length === bt.length && at.every((tool, i) => sameSchema(tool, bt[i] as ToolSchema))
+  return at.length === bt.length && at.every((tool, index) => deepEqualJson(tool, bt[index]))
 }
 
 /**

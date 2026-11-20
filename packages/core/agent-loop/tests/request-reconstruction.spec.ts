@@ -112,6 +112,34 @@ describe('request stability across the loop', () => {
     expect(headerEvents[0]?.type === 'request/header' && headerEvents[0].data.reason).toBe('initial')
   })
 
+  it('projects canonical tool parameters onto the wire and the logged header', async () => {
+    const adapter = new MockAdapter([textResponse('done')])
+    const ctx = await harness(adapter)
+    ctx.tools.register({
+      name: 'external',
+      description: 'external tool',
+      parameters: {
+        type: 'object',
+        required: ['second', 'first'],
+        properties: { second: { type: 'string' }, first: { type: 'number' } },
+        additionalProperties: false,
+      },
+      output: { schema: { type: 'object', additionalProperties: false }, render: () => [] },
+      execute: async () => ({}),
+    })
+    const agent = await ctx.agentLoop.create(brandString<SessionId>('canonical'), { provider: 'mock', model: 'mock' })
+
+    send(agent, 'go')
+    await waitForIdle(ctx, agent)
+
+    const wire = adapter.requests[0]!.tools!
+    expect(JSON.stringify(wire[0]!.parameters)).toBe(
+      '{"additionalProperties":false,"properties":{"first":{"type":"number"},"second":{"type":"string"}},"required":["first","second"],"type":"object"}',
+    )
+    expect(agent.session.requestHeader()?.tools).toEqual(wire)
+    expect(foldRequestHeader(agent.session.snapshotEvents())?.tools).toEqual(wire)
+  })
+
   it('a later turn append-extends the previous turn (one conversation, one log)', async () => {
     const adapter = new MockAdapter([textResponse('one'), textResponse('two')])
     const ctx = await harness(adapter)

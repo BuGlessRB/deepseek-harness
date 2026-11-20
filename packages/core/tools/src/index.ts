@@ -314,7 +314,7 @@ export class ToolsService extends Service {
    * @returns one deep-cloned schema per visible tool.
    */
   schemas(scope?: ScopeKey, toolSet?: ResolvedToolSet): ToolSchema[] {
-    return this.definitions(scope, toolSet).map(definition => projectToolSchema(definition, true))
+    return this.definitions(scope, toolSet).map(definition => projectToolSchema(definition))
   }
   /**
    * Provide the executor for the calling scope; an unscoped contribution is the deployment default.

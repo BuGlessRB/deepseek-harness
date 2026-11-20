@@ -63,7 +63,7 @@ type JsonWalkFrame =
   | { kind: 'object'; source: Record<string, unknown>; keys: string[]; index: number; key: string; target: { [key: string]: JsonValue } | undefined }
 
 /** Validate lossless JSON iteratively, optionally materializing a detached snapshot. */
-function walkJsonValue(value: unknown, detach: boolean): JsonValue | true | undefined {
+function walkJsonValue(value: unknown, detach: boolean, sortKeys: boolean): JsonValue | true | undefined {
   const ancestors = new Set<object>()
   let root: JsonValue | undefined
   let parent: JsonWalkFrame | undefined
@@ -112,6 +112,7 @@ function walkJsonValue(value: unknown, detach: boolean): JsonValue | true | unde
         if (!hasPlainObjectPrototype(current)) return undefined
         const keys = enumerableStringKeys(current)
         if (keys === undefined) return undefined
+        if (sortKeys) keys.sort()
         const target = detach ? {} as { [key: string]: JsonValue } : undefined
         if (target !== undefined) assign(target)
         frames.push({ kind: 'object', source: current as Record<string, unknown>, keys, index: 0, key: '', target })
@@ -155,7 +156,20 @@ function walkJsonValue(value: unknown, detach: boolean): JsonValue | true | unde
  * @returns the detached snapshot, or `undefined` when the value is not losslessly JSON-serializable.
  */
 export function snapshotJsonValue<T>(value: T): T | undefined {
-  return walkJsonValue(value, true) as T | undefined
+  return walkJsonValue(value, true, false) as T | undefined
+}
+
+/**
+ * Validate lossless JSON and detach it with every object's keys sorted.
+ *
+ * Sorting uses `Array.prototype.sort()`'s default UTF-16 code-unit order, so
+ * two values that differ only in key insertion order produce identical
+ * canonical bytes. Arrays keep their element order.
+ * @param value - candidate value to validate and canonicalize.
+ * @returns the detached canonical value, or `undefined` when the value is not losslessly JSON-serializable.
+ */
+export function canonicalJsonValue<T>(value: T): T | undefined {
+  return walkJsonValue(value, true, true) as T | undefined
 }
 
 /**
@@ -164,7 +178,7 @@ export function snapshotJsonValue<T>(value: T): T | undefined {
  * @returns whether the value survives a JSON round trip without loss.
  */
 export function isJsonValue(value: unknown): boolean {
-  return walkJsonValue(value, false) === true
+  return walkJsonValue(value, false, false) === true
 }
 
 /**

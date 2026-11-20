@@ -43,7 +43,7 @@ it('selects one configured provider per call and exposes only task inputs', asyn
     providers: { codex: 'codex-provider', claude: 'claude-provider', future: 'future-provider' },
   })
   const schema = ctx.tools.schemas().find(tool => tool.name === 'subagent_oar')
-  expect(schema?.parameters.required).toEqual(['runtime', 'description', 'prompt'])
+  expect(schema?.parameters.required).toEqual(['description', 'prompt', 'runtime'])
   expect(Object.keys(schema?.parameters.properties as Record<string, unknown>).sort()).toEqual(['description', 'name', 'prompt', 'runtime'])
   expect(schema?.parameters.properties).toMatchObject({ runtime: { enum: ['codex', 'claude', 'future'] } })
   for (const [runtime, name, expected] of [['codex', undefined, 'agent-1'], ['claude', 'reviewer', 'reviewer'], ['future', undefined, 'agent-2']] as const) {

@@ -2,7 +2,7 @@
 
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, ToolSchema } from '@deepseek-ai/dsh-llm'
-import { snapshotJsonValue } from '@deepseek-ai/dsh-util-values'
+import { canonicalJsonValue } from '@deepseek-ai/dsh-util-values'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { ToolDefinition, ToolExecution, ToolExecutionResult, ToolRunContext, ToolResult } from './contracts.ts'
 import { assertSupportedJsonSchema, isJsonSchemaRecord, isPlainJsonArray, JsonSchemaError, validateJsonSchemaValue } from './json-schema.ts'
@@ -632,15 +632,54 @@ export function defineTool<const S extends ParameterSchemaSpec, const O extends 
   return tool
 }
 
+/** Whether a JSON value is an array of strings, the shape of a JSON Schema name list. */
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(entry => typeof entry === 'string')
+}
+
 /**
- * Omit execution and presentation callbacks from a tool definition.
- * @param definition - visible capability or executor-owned transport.
- * @param detachParameters - copy parameters for a caller-owned inspection result.
- * @returns the model-facing schema fields.
+ * Sort every `required` name list in one detached schema tree in place.
+ *
+ * `required` is a set in JSON Schema, so its order carries no meaning: a source
+ * that re-emits the same field list in another order would otherwise still
+ * change the request bytes after the object keys were canonicalized.
+ * @param schema - detached canonical schema tree to normalize.
  */
-export function projectToolSchema(definition: ToolDefinition, detachParameters: boolean): ToolSchema {
+function sortRequiredNames(schema: Record<string, unknown>): void {
+  const pending: Record<string, unknown>[] = [schema]
+  for (let node = pending.pop(); node !== undefined; node = pending.pop()) {
+    for (const [key, value] of Object.entries(node)) {
+      if (key === 'required' && isStringArray(value)) {
+        value.sort()
+        continue
+      }
+      if (Array.isArray(value)) {
+        for (const entry of value) {
+          if (isJsonSchemaRecord(entry)) pending.push(entry)
+        }
+      } else if (isJsonSchemaRecord(value)) {
+        pending.push(value)
+      }
+    }
+  }
+}
+
+/**
+ * Project a definition onto the model-facing schema fields, excluding execution
+ * and presentation callbacks.
+ *
+ * Parameters are canonicalized: object keys are sorted at every level and every
+ * `required` name list is sorted, so schemas that differ only in how their
+ * author or an MCP server ordered keys or names serialize to identical bytes.
+ * Tool parameters are part of the provider request prefix, and a reordering
+ * would otherwise invalidate its cache.
+ * @param definition - visible capability or executor-owned transport.
+ * @returns the model-facing schema fields, with detached canonical parameters.
+ */
+export function projectToolSchema(definition: ToolDefinition): ToolSchema {
   const { name, description, parameters, deferLoading } = definition
-  const detached = detachParameters ? snapshotJsonValue(parameters) : parameters
-  if (detached === undefined) throw new Error(`tool "${name}" parameters must be lossless JSON before schema projection`)
-  return { name, description, parameters: detached, ...deferLoading === true ? { deferLoading } : {} }
+  const canonical = canonicalJsonValue(parameters)
+  if (canonical === undefined) throw new Error(`tool "${name}" parameters must be lossless JSON before schema projection`)
+  sortRequiredNames(canonical)
+  return { name, description, parameters: canonical, ...deferLoading === true ? { deferLoading } : {} }
 }

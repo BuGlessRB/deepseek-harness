@@ -1,11 +1,14 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
   JsonSchemaError,
+  defineTool,
   parameterSchemaSpecToJsonSchema,
+  projectToolSchema,
   valueSchemaSpecToJsonSchema,
   type InferArgs,
   type InferValue,
   type ParameterSchemaSpec,
+  type ToolDefinition,
   type ValueSchemaSpec,
 } from '../src/index.ts'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
@@ -201,5 +204,95 @@ describe('the unified author schema DSL', () => {
       symbol: { [symbolKey]: { type: 'string' } } satisfies ParameterSchemaSpec,
     }
     expect(Object.keys(invalidObjects)).toHaveLength(5)
+  })
+})
+
+describe('projectToolSchema', () => {
+  /** A raw definition, as an MCP bridge passes the server's own input schema through. */
+  function rawDefinition(parameters: Record<string, unknown>): ToolDefinition {
+    return {
+      name: 'external',
+      description: 'd',
+      parameters,
+      output: { schema: { type: 'object', additionalProperties: false }, render: () => [] },
+      execute: async () => ({}),
+    }
+  }
+
+  it('canonicalizes parameter keys so insertion order cannot reach the wire', () => {
+    const forward = projectToolSchema(rawDefinition({
+      type: 'object',
+      required: ['z', 'a'],
+      properties: { z: { type: 'string' }, a: { type: 'object', properties: { y: {}, x: {} }, additionalProperties: false } },
+      additionalProperties: false,
+    }))
+    const reverse = projectToolSchema(rawDefinition({
+      additionalProperties: false,
+      properties: { a: { additionalProperties: false, properties: { x: {}, y: {} }, type: 'object' }, z: { type: 'string' } },
+      required: ['z', 'a'],
+      type: 'object',
+    }))
+
+    expect(JSON.stringify(forward.parameters)).toBe(JSON.stringify(reverse.parameters))
+    expect(Object.keys(forward.parameters)).toEqual(['additionalProperties', 'properties', 'required', 'type'])
+    expect(JSON.stringify(forward.parameters.properties)).toBe(
+      '{"a":{"additionalProperties":false,"properties":{"x":{},"y":{}},"type":"object"},"z":{"type":"string"}}',
+    )
+    // `required` is a set in JSON Schema, so its order is canonicalized too.
+    expect(forward.parameters.required).toEqual(['a', 'z'])
+  })
+
+  it('sorts required name lists at every depth while leaving value order alone', () => {
+    const projected = projectToolSchema(rawDefinition({
+      type: 'object',
+      required: ['outer_b', 'outer_a'],
+      properties: {
+        nested: {
+          type: 'object',
+          required: ['inner_b', 'inner_a'],
+          properties: { inner_a: { type: 'string', enum: ['z', 'a'] }, inner_b: { type: 'string' } },
+          additionalProperties: false,
+        },
+        outer_a: { type: 'string' },
+        outer_b: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+      },
+      additionalProperties: false,
+    }))
+
+    expect(JSON.stringify(projected.parameters)).toBe(
+      '{"additionalProperties":false,"properties":{"nested":{"additionalProperties":false,"properties":'
+      + '{"inner_a":{"enum":["z","a"],"type":"string"},"inner_b":{"type":"string"}},"required":["inner_a","inner_b"],'
+      + '"type":"object"},"outer_a":{"type":"string"},"outer_b":{"oneOf":[{"type":"string"},{"type":"null"}]}},'
+      + '"required":["outer_a","outer_b"],"type":"object"}',
+    )
+  })
+
+  it('canonicalizes the schema a typed definition compiles', () => {
+    const tool = defineTool({
+      name: 'typed',
+      description: 'd',
+      parameters: { zulu: { type: 'string', required: true }, alpha: { type: 'number' } },
+      output: { schema: { type: 'object', additionalProperties: false }, render: () => [] },
+      execute: async () => ({}),
+    })
+
+    const projected = projectToolSchema(tool)
+
+    expect(JSON.stringify(projected.parameters)).toBe(
+      '{"properties":{"alpha":{"type":"number"},"zulu":{"type":"string"}},"required":["zulu"],"type":"object"}',
+    )
+    expect(projected.parameters).not.toBe(tool.parameters)
+  })
+
+  it('keeps the deferred-loading flag and drops every non-schema field', () => {
+    const projected = projectToolSchema({
+      ...rawDefinition({ type: 'object' }),
+      name: 'deferred',
+      deferLoading: true,
+      timeoutMs: 1_000,
+    })
+
+    expect(Object.keys(projected)).toEqual(['name', 'description', 'parameters', 'deferLoading'])
+    expect(projected.deferLoading).toBe(true)
   })
 })

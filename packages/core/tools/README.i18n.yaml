@@ -18,8 +18,8 @@
   en: d382227271bf92ae
   zh: 1f66b181418c91b9
 /deepseek-ai-dsh-tools/use-this-package/register-a-tool:
-  en: 1808e2a95ee21584
-  zh: 40c40da7d1418407
+  en: ebfc0ff515917c81
+  zh: f5612c52f0702f2b
 /deepseek-ai-dsh-tools/use-this-package/conditional-tools:
   en: eb80334754c2493a
   zh: b431635ec1f4664f
@@ -63,14 +63,14 @@
   en: 483b01d9bb2cb49a
   zh: 1d95095e76fb0996
 /deepseek-ai-dsh-tools/model-experience/normal-tool-schemas/what-the-model-sees:
-  en: d6a5c32a421bfe97
-  zh: 542d49df376e70a4
+  en: 4836c99d8df71d8c
+  zh: fdda18fb3ca9953a
 /deepseek-ai-dsh-tools/model-experience/normal-tool-schemas/token-effect:
   en: d594b71ff5e4cc87
   zh: dcec1ea0dd2a0fa6
 /deepseek-ai-dsh-tools/model-experience/normal-tool-schemas/kv-cache-effect:
-  en: 7c5e75964e020b2c
-  zh: d50d0402d15232d9
+  en: 31f198d7d52cc301
+  zh: 5e71c38e13f1aa79
 /deepseek-ai-dsh-tools/model-experience/tool-call-history-and-results:
   en: a8503137ad03720c
   zh: 611a2dadf7c0c706

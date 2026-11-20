@@ -263,7 +263,7 @@ describe('Schedule model tools', () => {
     const test = await setup()
     const schema = test.ctx.tools.schemas(test.agent).find(candidate => candidate.name === 'schedule_create')
     expect(schema?.parameters).toMatchObject({
-      required: ['title', 'prompt', 'rrule', 'target'],
+      required: ['prompt', 'rrule', 'target', 'title'],
       properties: {
         title: { type: 'string', description: expect.stringContaining(`Task name of at most ${MAX_TITLE_LENGTH} characters`) as string },
         rrule: {

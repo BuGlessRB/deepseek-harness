@@ -13,7 +13,7 @@ export class NativeToolExecutor implements ToolExecutor {
   }
 
   describe(tools: readonly ToolDefinition[]): ToolModelInput {
-    return { schemas: tools.map(definition => projectToolSchema(definition, false)) }
+    return { schemas: tools.map(definition => projectToolSchema(definition)) }
   }
 
   execute(input: ToolBatchInput): Promise<ToolBatchResult> {

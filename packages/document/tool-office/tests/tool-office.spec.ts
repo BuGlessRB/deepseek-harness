@@ -216,9 +216,9 @@ describe('office schema', () => {
     const schemas = ctx.tools.schemas()
     expect(schemas.map(schema => schema.name)).toEqual(['office_render', 'office_convert', 'office_recalculate'])
     expect(schemas.map(schema => Object.keys(schema.parameters.properties ?? {}))).toEqual([
-      ['input', 'pages', 'sheet', 'range', 'dpi'], ['input', 'format', 'sheet'], ['input', 'format'],
+      ['dpi', 'input', 'pages', 'range', 'sheet'], ['format', 'input', 'sheet'], ['format', 'input'],
     ])
-    expect(schemas.map(schema => schema.parameters.required)).toEqual([['input'], ['input', 'format'], ['input', 'format']])
+    expect(schemas.map(schema => schema.parameters.required)).toEqual([['input'], ['format', 'input'], ['format', 'input']])
     expect(schemas[0]?.description).toBe('Render document pages, slides, or worksheet areas as images you can view.')
     expect(schemas[1]?.parameters).toMatchObject({ properties: { format: { enum: ['pdf', 'docx', 'odt', 'txt', 'xlsx', 'ods', 'csv', 'pptx', 'odp'] } } })
     expect(schemas[2]?.parameters).toMatchObject({ properties: { format: { enum: ['xlsx', 'ods'] } } })

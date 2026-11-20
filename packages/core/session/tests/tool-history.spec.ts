@@ -123,6 +123,28 @@ describe('Session.toolHistory', () => {
     ] })
   })
 
+  it('continues the series when a retained name is redeclared with reordered schema keys', () => {
+    const declared: ToolSchema = {
+      name: 'fetch',
+      description: 'Fetch',
+      parameters: { type: 'object', properties: { a: {}, b: {} } },
+    }
+    const reordered: ToolSchema = {
+      name: 'fetch',
+      description: 'Fetch',
+      parameters: { properties: { b: {}, a: {} }, type: 'object' },
+    }
+    const session = opened([search, declared])
+    header(session, [search])
+    const removed = update(session, [remove('fetch')])
+    const headerSeq = header(session, [search, reordered])
+    const restored = update(session, [add('fetch')], headerSeq)
+    expect(session.toolHistory()).toEqual({ tools: [search, declared], updates: [
+      { messageId: removed.id, additions: [] },
+      { messageId: restored.id, additions: [reordered] },
+    ] })
+  })
+
   it('falls back to complete active declarations while a header lacks its update record', () => {
     const session = opened([search])
     const headerSeq = header(session, [search, fetch])

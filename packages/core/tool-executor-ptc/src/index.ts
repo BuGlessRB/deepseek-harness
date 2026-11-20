@@ -38,13 +38,13 @@ export class PtcExecutor implements ToolExecutor {
   }
 
   describe(_tools: readonly ToolDefinition[]): ToolModelInput {
-    return { schemas: [projectToolSchema(this.requirePtcTransport(), false)], knownNames: [RUN_CODE_NAME] }
+    return { schemas: [projectToolSchema(this.requirePtcTransport())], knownNames: [RUN_CODE_NAME] }
   }
 
   private renderSdk(tools: readonly ToolDefinition[]): string {
     const runtime = requirePtcRuntime(this.ctx)
     return renderToolsSdk(tools.map(definition => ({
-      ...projectToolSchema(definition, false),
+      ...projectToolSchema(definition),
       output: definition.output.schema,
     })), runtime.programFormat)
   }

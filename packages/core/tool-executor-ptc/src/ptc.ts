@@ -644,7 +644,7 @@ export function createRunCodeTransport(
         // PTC uses step-admitted registry tools; a registered program tool uses
         // only its private definitions, resolved by its own pipeline on each call.
         const schemas = options === undefined ? tools.schemas(exec.agent, exec.toolSet)
-          : options.tools.map(definition => projectToolSchema(definition, true))
+          : options.tools.map(definition => projectToolSchema(definition))
         for (const schema of schemas) {
           Object.defineProperty(functions, schema.name, { enumerable: true, value: binding(deepFreeze(schema)) })
         }

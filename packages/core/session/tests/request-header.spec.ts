@@ -56,6 +56,24 @@ describe('headerEquals', () => {
     expect(headerEquals({ config: CONFIG, tools: [tool('a'), tool('b')] }, { config: CONFIG, tools: [tool('b'), tool('a')] })).toBe(false)
   })
 
+  it('compares tool schemas structurally rather than by serialized key order', () => {
+    const declared: EpochHeader = {
+      config: CONFIG,
+      tools: [{ name: 'a', description: 'd', parameters: { type: 'object', properties: { b: {}, a: {} } } }],
+    }
+    const reordered: EpochHeader = {
+      config: CONFIG,
+      tools: [{ parameters: { properties: { a: {}, b: {} }, type: 'object' }, description: 'd', name: 'a' }],
+    }
+    const changed: EpochHeader = {
+      config: CONFIG,
+      tools: [{ name: 'a', description: 'd', parameters: { type: 'object', properties: { b: {} } } }],
+    }
+
+    expect(headerEquals(declared, reordered)).toBe(true)
+    expect(headerEquals(declared, changed)).toBe(false)
+  })
+
   it('treats absent and empty tool arrays as equivalent canonical absence', () => {
     expect(headerEquals({ config: CONFIG }, { config: CONFIG, tools: [] })).toBe(true)
     expect(headerEquals({ config: CONFIG, tools: [] }, { config: CONFIG })).toBe(true)

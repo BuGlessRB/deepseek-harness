@@ -45,8 +45,8 @@
   en: dabbe938e288c55a
   zh: 31c7ac2bee2a2846
 /deepseek-ai-dsh-session/understand-the-implementation/request-headers:
-  en: bbfb53c50100ab13
-  zh: 303a8ee47f4f656a
+  en: 54eb3537fba08295
+  zh: dde962d55fb6068e
 /deepseek-ai-dsh-session/understand-the-implementation/source-map:
   en: cc05cde73a434a87
   zh: 9be95b465bd191c9
@@ -96,14 +96,14 @@
   en: 5397f067293a55cd
   zh: 1dcc30d0c214f175
 /deepseek-ai-dsh-session/model-experience/logged-request-header/what-the-model-sees:
-  en: cfb4fd90e1982948
-  zh: fefc01118b2a5c07
+  en: d967986a1bf4d6a8
+  zh: c64f33f6c34a687c
 /deepseek-ai-dsh-session/model-experience/logged-request-header/token-effect:
   en: 310b8f36a86443e5
   zh: 906c4da8d03c5966
 /deepseek-ai-dsh-session/model-experience/logged-request-header/kv-cache-effect:
-  en: 5eb30cfb410d52c0
-  zh: da56365b8ab896da
+  en: 9618ccecf847a93f
+  zh: 27c2740f6a3e0b78
 /deepseek-ai-dsh-session/known-limitations-and-deferred-work:
   en: 45afe96a4e252db9
   zh: 920bcc011823817b

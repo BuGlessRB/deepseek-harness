@@ -33,6 +33,8 @@ kind: "package-reference"
 
 `defineTool` 构建类型化工具定义：面向模型的名称、描述与参数 schema、规范输出声明，以及只返回所声明 JSON 值的 `execute` 主体。模型参数在执行前被校验；无效输入变成普通错误结果。
 
+每次面向模型的投影（`ctx.tools.schemas()`、两种执行器，以及循环记录到请求头中的 schema）都会对每一层参数对象的键以及每个 `required` 名称列表排序。因此，以原始 JSON Schema 注册的工具——例如 MCP 服务器的 `inputSchema`——无论来源以何种顺序排列键或 `required` 名称，都会序列化为相同字节。其他数组保留元素顺序，包括 `enum` 值与 `oneOf` 分支。
+
 规范值属于执行过程；Session 记录渲染后的内容及可选展示元数据。替换或脱敏这些内容不会移除程序化调用方可读取的规范值；需要禁止该访问的策略必须阻止执行或替换该值。
 
 ```ts
@@ -162,7 +164,7 @@ Agent 步骤的并发上限使用 [agent-loop 配置](../agent-loop/README.zh.md
 
 #### 模型看到什么
 
-在普通模式下，模型会看到每个可见定义的确切名称、描述与 JSON Schema；已交付定义记录在生成的[工具目录](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-executor-ptc)中。agent 作用域的限制、遮蔽与扩展注册会改变该 agent 的最终工具集合。
+在普通模式下，模型会看到每个可见定义的确切名称、描述与 JSON Schema；已交付定义记录在生成的[工具目录](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-executor-ptc)中。schema 对象的键与 `required` 名称按规范化后的排序顺序到达。agent 作用域的限制、遮蔽与扩展注册会改变该 agent 的最终工具集合。
 
 #### Token 影响
 
@@ -170,7 +172,7 @@ Agent 步骤的并发上限使用 [agent-loop 配置](../agent-loop/README.zh.md
 
 #### KV Cache 影响
 
-只要可见定义及其顺序不变，前缀就保持稳定。注册、dispose 或作用域限制可能从第一个改变的 schema token 起使复用失效。
+只要可见定义及其顺序不变，前缀就保持稳定。规范化后的 schema 字节意味着仅在对象键顺序上不同的等价 schema 仍保留前缀。注册、dispose 或作用域限制可能从第一个改变的 schema token 起使复用失效。
 
 ### 工具调用历史与结果
 

@@ -33,6 +33,8 @@ Mount `dsh-tools` wherever agents call tools: it provides `ctx.tools`, the regis
 
 `defineTool` builds a typed tool definition: a model-facing name, description, and parameter schema, a canonical output declaration, and an `execute` body that returns only the declared JSON value. Model arguments are validated before execution; invalid input becomes a normal error result.
 
+Every model-facing projection (`ctx.tools.schemas()`, both executors, and the schemas the loop logs in its request header) sorts parameter object keys at every level and every `required` name list. A tool registered from a raw JSON Schema — an MCP server's `inputSchema`, for example — therefore serializes identically however its source ordered the keys or its `required` names. Every other array keeps its element order, including `enum` values and `oneOf` branches.
+
 Canonical values belong to execution; the Session records rendered content and optional presentation metadata instead. Replacing or redacting that content does not remove the canonical value available to a programmatic caller; a policy that must deny that access must block execution or replace the value.
 
 ```ts
@@ -162,7 +164,7 @@ The package-level contract is enough for most consumers; read these when you nee
 
 #### What the model sees
 
-In normal mode the model sees each visible definition's exact name, description, and JSON Schema; the shipped definitions are recorded in the generated [tool catalog](../../../docs/tool-catalog.md#deepseek-aidsh-tool-executor-ptc). Agent-scoped restrictions, shadows, and extension registrations change that agent's end-tool set.
+In normal mode the model sees each visible definition's exact name, description, and JSON Schema; the shipped definitions are recorded in the generated [tool catalog](../../../docs/tool-catalog.md#deepseek-aidsh-tool-executor-ptc). Schema object keys and `required` names arrive in canonical sorted order. Agent-scoped restrictions, shadows, and extension registrations change that agent's end-tool set.
 
 #### Token effect
 
@@ -170,7 +172,7 @@ Fixed per-request cost proportional to the visible definitions. Restrictions tha
 
 #### KV Cache effect
 
-Prefix-stable while visible definitions and their order are unchanged. Registration, disposal, or scoped restriction may invalidate reuse from the first changed schema token.
+Prefix-stable while visible definitions and their order are unchanged. Canonical schema bytes mean an equivalent schema that only reordered its object keys keeps the prefix. Registration, disposal, or scoped restriction may invalidate reuse from the first changed schema token.
 
 ### Tool-call history and results
 

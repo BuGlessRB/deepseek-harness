@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Callers can validate lossless JSON, read streamed arguments, detach a JSON snapshot, freeze a published value, compare JSON-compatible data, or terminate an unreachable branch without importing a capability package. Each streamed call uses its own `PartialArguments` reader; `PartialArguments.EMPTY` is a shared sealed view with no fields.
+Callers can validate lossless JSON, read streamed arguments, detach or canonicalize a JSON snapshot, freeze a published value, compare JSON-compatible data, or terminate an unreachable branch without importing a capability package. Each streamed call uses its own `PartialArguments` reader; `PartialArguments.EMPTY` is a shared sealed view with no fields.
 
 ## Table of Contents
 
@@ -26,15 +26,16 @@ Callers can validate lossless JSON, read streamed arguments, detach a JSON snaps
 
 ### Validate or snapshot JSON data
 
-Use `isJsonValue()` for a predicate and `snapshotJsonValue()` when the caller also needs a detached copy. Both accept only lossless JSON roots: `null`, booleans, finite numbers other than negative zero, strings, dense intrinsic arrays, and plain or null-prototype records with enumerable string keys. Cycles, sparse arrays, symbol or non-enumerable own properties, functions, and class instances are rejected.
+Use `isJsonValue()` for a predicate, `snapshotJsonValue()` when the caller also needs a detached copy, and `canonicalJsonValue()` when equal data must also serialize to equal bytes. All three accept only lossless JSON roots: `null`, booleans, finite numbers other than negative zero, strings, dense intrinsic arrays, and plain or null-prototype records with enumerable string keys. Cycles, sparse arrays, symbol or non-enumerable own properties, functions, and class instances are rejected. `canonicalJsonValue()` sorts every object's keys in `Array.prototype.sort()` order and keeps array element order, so values that differ only in key insertion order produce identical JSON.
 
 ```ts
-import { isJsonValue, snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
+import { canonicalJsonValue, isJsonValue, snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
 
 declare const input: unknown
 
 if (!isJsonValue(input)) throw new TypeError('expected lossless JSON')
 const snapshot = snapshotJsonValue(input) as JsonValue
+const canonical = canonicalJsonValue(input) as JsonValue
 ```
 
 ### Read streamed arguments
@@ -67,7 +68,7 @@ The JSON validator keeps one cursor per active container, reads one child at a t
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | JSON value type, validation and snapshot traversal, structural equality, deep freezing, weak-key/strong-value associations, and exhaustive-union failure |
+| [`src/index.ts`](src/index.ts) | JSON value type, validation, snapshot and canonical traversal, structural equality, deep freezing, weak-key/strong-value associations, and exhaustive-union failure |
 | [`src/partial-json.ts`](src/partial-json.ts) | Lazy top-level argument scanning and observed-answer change detection |
 
 </details>

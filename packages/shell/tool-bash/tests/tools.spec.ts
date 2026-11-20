@@ -412,13 +412,14 @@ describe('bash tool', () => {
   it.each([
     ['foreground-only', setup],
     ['job-backed', setupWithJobs],
-  ] as const)('requests description before command in the %s schema', async (_mode, setupContext) => {
+  ] as const)('projects canonical parameter order in the %s schema', async (_mode, setupContext) => {
     const ctx = await setupContext()
     try {
       const schema = ctx.tools.schemas().find(tool => tool.name === 'bash')!
       expect(Object.keys(schema.parameters.properties as Record<string, unknown>).slice(0, 2))
-        .toEqual(['description', 'command'])
-      expect(schema.parameters).toHaveProperty('required', ['description', 'command'])
+        .toEqual(['command', 'description'])
+      // Both the keys and the required name list are canonicalized.
+      expect(schema.parameters).toHaveProperty('required', ['command', 'description'])
       expect(schema.description).toContain('Provide `description` before `command` in the arguments.')
     } finally {
       await ctx.fiber.dispose()
@@ -432,7 +433,7 @@ describe('bash tool', () => {
     const bashSchema = schemas.find(schema => schema.name === 'bash')!
     expect(bashSchema.parameters).toMatchObject({
       type: 'object',
-      required: ['description', 'command'],
+      required: ['command', 'description'],
     })
     expect(Object.keys(bashSchema.parameters.properties as Record<string, unknown>))
       .toContain('run_in_background')
@@ -446,7 +447,7 @@ describe('bash tool', () => {
     expect(schemas.map(schema => schema.name)).toEqual(['bash'])
     const bashSchema = schemas[0]!
     expect(Object.keys(bashSchema.parameters.properties as Record<string, unknown>))
-      .toEqual(['description', 'command', 'timeoutMs', 'workdir'])
+      .toEqual(['command', 'description', 'timeoutMs', 'workdir'])
     expect(JSON.stringify(bashSchema.parameters)).not.toContain('job_output')
     expect(JSON.stringify(bashSchema.parameters)).toContain('kills the command on expiry')
   })
@@ -717,7 +718,7 @@ describe('background execution through the job runtime', () => {
 
     const schema = ctx.tools.schemas().find(s => s.name === 'bash')!
     expect(Object.keys(schema.parameters.properties as Record<string, unknown>))
-      .toEqual(['description', 'command', 'timeoutMs', 'workdir'])
+      .toEqual(['command', 'description', 'timeoutMs', 'workdir'])
     expect(schema.description).not.toContain('run_in_background')
     // The registry-held definition agrees (schema and capability never disagree).
     const parameters = ctx.tools.get('bash')!.parameters as { properties: Record<string, unknown> }

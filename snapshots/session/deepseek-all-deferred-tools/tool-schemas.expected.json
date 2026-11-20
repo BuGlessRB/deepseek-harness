@@ -4,8 +4,8 @@
       "name": "snapshot_pending",
       "description": "Wait for activation.",
       "parameters": {
-        "type": "object",
-        "properties": {}
+        "properties": {},
+        "type": "object"
       },
       "deferLoading": true
     }

@@ -26,15 +26,16 @@ kind: "package-library"
 
 ### 校验 JSON 数据或创建快照
 
-需要 predicate 时使用 `isJsonValue()`，还需要分离副本时使用 `snapshotJsonValue()`。两者只接受无损 JSON 根值：`null`、布尔值、除负零外的有限数字、字符串、稠密的内建数组，以及只含可枚举字符串键的普通或 null-prototype 记录。循环、稀疏数组、自有 symbol 属性或自有不可枚举属性、函数和 class 实例都会被拒绝。
+需要 predicate 时使用 `isJsonValue()`，还需要分离副本时使用 `snapshotJsonValue()`，需要在相等数据也序列化为相同字节时使用 `canonicalJsonValue()`。三者只接受无损 JSON 根值：`null`、布尔值、除负零外的有限数字、字符串、稠密的内建数组，以及只含可枚举字符串键的普通或 null-prototype 记录。循环、稀疏数组、自有 symbol 属性或自有不可枚举属性、函数和 class 实例都会被拒绝。`canonicalJsonValue()` 按 `Array.prototype.sort()` 的顺序排序每个对象的键，并保留数组元素顺序，因此仅在键插入顺序上不同的值会生成相同 JSON。
 
 ```ts
-import { isJsonValue, snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
+import { canonicalJsonValue, isJsonValue, snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
 
 declare const input: unknown
 
 if (!isJsonValue(input)) throw new TypeError('expected lossless JSON')
 const snapshot = snapshotJsonValue(input) as JsonValue
+const canonical = canonicalJsonValue(input) as JsonValue
 ```
 
 ### 读取流式参数
@@ -67,7 +68,7 @@ JSON 校验器为每个正在遍历的容器保留一个位置，每次读取一
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | JSON 值类型、校验与快照遍历、结构相等、深度冻结、弱键/强值关联和穷尽联合类型失败 |
+| [`src/index.ts`](src/index.ts) | JSON 值类型、校验、快照与规范化遍历、结构相等、深度冻结、弱键/强值关联和穷尽联合类型失败 |
 | [`src/partial-json.ts`](src/partial-json.ts) | 懒扫描顶层参数，并检测已读取答案的变化 |
 
 </details>

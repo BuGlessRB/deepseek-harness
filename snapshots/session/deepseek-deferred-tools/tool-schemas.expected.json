@@ -6,8 +6,8 @@
         "name": "snapshot_initial",
         "description": "Make snapshot_ping available.",
         "parameters": {
-          "type": "object",
-          "properties": {}
+          "properties": {},
+          "type": "object"
         }
       }
     ],
@@ -16,8 +16,8 @@
         "name": "snapshot_ping",
         "description": "Return pong once.",
         "parameters": {
-          "type": "object",
-          "properties": {}
+          "properties": {},
+          "type": "object"
         }
       }
     ],
@@ -26,16 +26,16 @@
         "name": "snapshot_later",
         "description": "Return later.",
         "parameters": {
-          "type": "object",
-          "properties": {}
+          "properties": {},
+          "type": "object"
         }
       },
       {
         "name": "snapshot_ping",
         "description": "Return pong once.",
         "parameters": {
-          "type": "object",
-          "properties": {}
+          "properties": {},
+          "type": "object"
         }
       }
     ],
@@ -44,16 +44,16 @@
         "name": "snapshot_final",
         "description": "Return final.",
         "parameters": {
-          "type": "object",
-          "properties": {}
+          "properties": {},
+          "type": "object"
         }
       },
       {
         "name": "snapshot_ping",
         "description": "Return pong once.",
         "parameters": {
-          "type": "object",
-          "properties": {}
+          "properties": {},
+          "type": "object"
         }
       }
     ]

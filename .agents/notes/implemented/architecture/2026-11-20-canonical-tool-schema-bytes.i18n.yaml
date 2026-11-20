@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-11-20-canonical-tool-schema-bytes.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-11-20-canonical-tool-schema-bytes.md
+/agent-note-canonical-tool-schema-bytes:
+  en: af662875a617664a
+  zh: a70dbb1ca34943ca
+/agent-note-canonical-tool-schema-bytes/problem:
+  en: f9f442c27f96ad2a
+  zh: 2d45c5e0ad26746c
+/agent-note-canonical-tool-schema-bytes/decision:
+  en: e3d9eee43d08c47b
+  zh: 0bed8118d384a469
+/agent-note-canonical-tool-schema-bytes/alternatives-considered:
+  en: bd0c7691534d747e
+  zh: 9dede8e9bfe8b444
+/agent-note-canonical-tool-schema-bytes/consequences:
+  en: 607ea91f029f4eb7
+  zh: e6313026cba18534
+/agent-note-canonical-tool-schema-bytes/related:
+  en: 7d9dadd20ea6b298
+  zh: 4a6c3d028809a065

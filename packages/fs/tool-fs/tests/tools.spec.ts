@@ -188,15 +188,25 @@ describe('registration', () => {
   })
 
   it.each([
-    { name: 'write', fields: ['content'], hint: 'Provide `file_path` before `content` in the arguments.' },
-    { name: 'edit', fields: ['old_string', 'new_string'], hint: 'Provide `file_path` before `old_string` and `new_string` in the arguments.' },
-  ])('requests file_path before content fields for $name', async ({ name, fields, hint }) => {
+    {
+      name: 'write',
+      order: ['content', 'file_path'],
+      required: ['content', 'file_path'],
+      hint: 'Provide `file_path` before `content` in the arguments.',
+    },
+    {
+      name: 'edit',
+      order: ['file_path', 'new_string', 'old_string'],
+      required: ['file_path', 'new_string', 'old_string'],
+      hint: 'Provide `file_path` before `old_string` and `new_string` in the arguments.',
+    },
+  ])('projects canonical parameter order for $name', async ({ name, order, required, hint }) => {
     const { ctx } = await setup()
     try {
       const schema = ctx.tools.schemas().find(tool => tool.name === name)!
-      expect(Object.keys(schema.parameters.properties as Record<string, unknown>).slice(0, fields.length + 1))
-        .toEqual(['file_path', ...fields])
-      expect(schema.parameters).toHaveProperty('required', ['file_path', ...fields])
+      expect(Object.keys(schema.parameters.properties as Record<string, unknown>).slice(0, order.length))
+        .toEqual(order)
+      expect(schema.parameters).toHaveProperty('required', required)
       expect(schema.parameters).toHaveProperty('properties.file_path.description', expect.stringContaining(hint))
     } finally {
       await ctx.fiber.dispose()
