@@ -95,7 +95,9 @@ it('resolves listed capabilities with this build\'s model knowledge', async () =
     systemPromptUpdate: 'in-history', toolUpdate: 'addition-only', inputModalities: ['text', 'image'],
     reasoning: { defaultEffort: brandString<ReasoningEffortId>('high') },
   })
-  await expect(ctx.llm.resolveModelInfo('deepseek-account', 'deepseek-v4-pro')).resolves.not.toHaveProperty('systemPromptUpdate')
+  await expect(ctx.llm.resolveModelInfo('deepseek-account', 'deepseek-v4-pro')).resolves.toMatchObject({
+    systemPromptUpdate: 'in-history', toolUpdate: 'addition-only',
+  })
   expect(server.requests).toHaveLength(1)
   expect(server.requests[0]?.headers['user-agent']).toMatch(/^deepseek-harness\//)
 })

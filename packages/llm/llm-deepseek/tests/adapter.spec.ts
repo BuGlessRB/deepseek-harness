@@ -129,6 +129,23 @@ describe('direct Messages HTTP', () => {
     expect(http.requests[1]?.headers).not.toHaveProperty('anthropic-beta')
   })
 
+  it.each(['deepseek-flash', 'deepseek-v4-pro'])('appends a prompt change after cached history on %s', async (model) => {
+    const http = await endpoint()
+    const history = [
+      createSystemMessage('original'), user('first'),
+      createAssistantMessage({ content: [{ type: 'text', text: 'one' }], source: { provider: 'deepseek-official', model } }),
+      createSystemMessage('updated'), user('second'),
+    ]
+    await assemble(adapter({ baseURL: http.url }).stream(options({ model, messages: history })), model)
+    expect(http.requests[0]?.body).toMatchObject({
+      system: 'original',
+      messages: [
+        { role: 'user' }, { role: 'assistant' }, { role: 'user' },
+        { role: 'system', content: [{ type: 'text', text: 'updated' }] },
+      ],
+    })
+  })
+
   it('surfaces provider rejection of an all-deferred request without adding tools', async () => {
     const message = 'At least one tool must not be deferred'
     const http = await endpoint((response) => {

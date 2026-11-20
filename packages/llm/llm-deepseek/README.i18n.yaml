@@ -21,11 +21,11 @@
   en: 6850d08bc091ad23
   zh: 2906e6cf1dfed6ce
 /deepseek-ai-dsh-llm-deepseek/use-this-package/minimal-configuration:
-  en: 6831ed97c9973e2e
-  zh: a8044f87791fd568
+  en: 153fd43cccf11d4a
+  zh: f50f9ca4152d1a18
 /deepseek-ai-dsh-llm-deepseek/use-this-package/endpoint-and-wire-format:
-  en: 2cbb7da28f41aa98
-  zh: 3ecb9d17c7e77a03
+  en: 81e7c09db20b6a30
+  zh: 0dad8f7725441d0d
 /deepseek-ai-dsh-llm-deepseek/use-this-package/account-credentials:
   en: 5f8cda73f2c10260
   zh: 2a507d9ee8b9c67a
@@ -84,8 +84,8 @@
   en: ddfbea043596878d
   zh: 4fbf5864a684c053
 /deepseek-ai-dsh-llm-deepseek/known-limitations-and-deferred-work:
-  en: 232b09e9f33d9b1a
-  zh: bf838648f8ba4e62
+  en: 12aa7c3ea083a7a3
+  zh: 14990f864a782207
 /deepseek-ai-dsh-llm-deepseek/known-limitations-and-deferred-work/dev-note:
   en: ddc6cf85ac5d9520
   zh: d61436104184ce7c

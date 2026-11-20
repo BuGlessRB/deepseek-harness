@@ -50,7 +50,7 @@ kind: "package-reference"
     filesApiTimeoutMs: 20000
 ```
 
-请求用 `provider: deepseek-official` 选择路由；模型 id 原样传到协议，因此新增 DeepSeek 模型无需重新注册。省略 `models` 时公布支持文本和图像的 `deepseek-flash`，以及仅支持文本的 `deepseek-v4-pro`，各自的上下文窗口均为官方模型列表声明的 1,048,576 token。显式列表会替换这些默认值，核心调用中未列出的模型 id 仍作为纯文本路由原样通过。在官方端点上，当 `models` 保持这些默认值时，API key 路由改为使用服务端的模型列表（[列表规则](../llm-deepseek-api-key/README.zh.md#use-this-package)）。GUI 选择要求模型具有目录条目；条目消失后，已保存的选择仍可提交请求。包括模型发现工具在内的客户端可通过 `ctx.llm.listModels('deepseek-official')` 读取这些建议性条目。支持图片的条目可把 `imagePixelBudget` 设为正整数或 `low`，并可设置 `imageTargetBytes`。端点支持消息内的原生系统增量时，条目可声明 `systemPromptUpdate: in-history`。所有路由都按段准入；此能力选择适配器表示。默认的 `deepseek-flash` 条目声明该模式；其他模型需通过 `models` 显式声明，`in-history` 以外的任何值都会在加载时以 `llm-deepseek: catalog model "<id>" systemPromptUpdate must be "in-history" when present` 失败。
+请求用 `provider: deepseek-official` 选择路由；模型 id 原样传到协议，因此新增 DeepSeek 模型无需重新注册。省略 `models` 时公布支持文本和图像的 `deepseek-flash`，以及仅支持文本的 `deepseek-v4-pro`，各自的上下文窗口均为官方模型列表声明的 1,048,576 token。显式列表会替换这些默认值，核心调用中未列出的模型 id 仍作为纯文本路由原样通过。在官方端点上，当 `models` 保持这些默认值时，API key 路由改为使用服务端的模型列表（[列表规则](../llm-deepseek-api-key/README.zh.md#use-this-package)）。GUI 选择要求模型具有目录条目；条目消失后，已保存的选择仍可提交请求。包括模型发现工具在内的客户端可通过 `ctx.llm.listModels('deepseek-official')` 读取这些建议性条目。支持图片的条目可把 `imagePixelBudget` 设为正整数或 `low`，并可设置 `imageTargetBytes`。端点支持消息内的原生系统增量时，条目可声明 `systemPromptUpdate: in-history`。所有路由都按段准入；此能力选择适配器表示。两个默认条目都声明该模式；其他模型需通过 `models` 显式声明，`in-history` 以外的任何值都会在加载时以 `llm-deepseek: catalog model "<id>" systemPromptUpdate must be "in-history" when present` 失败。
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
@@ -85,7 +85,7 @@ kind: "package-reference"
 
 官方根地址为 `https://api.deepseek.com/anthropic`。显式 `baseURL` 或 `$DEEPSEEK_BASE_URL` 提供兼容 Messages 的根地址；`dsh` 启动器从启动环境或 `$DSH_HOME/.env` 接受该变量，绝不从项目 `.env` 接受（[app-boot](../../boot/app-boot/README.zh.md)）。模型与 Files 请求分别追加 `/v1/messages` 和 `/v1/files`，但末尾严格匹配的 `/v1` 路径段会直接复用。末尾斜线不改变这些结果。基址必须使用 HTTP(S)，且不含凭据、查询或片段。
 
-Messages 以内容块发送文本、思考、工具调用和工具结果，以 `output_config.effort` 发送推理强度，并以 Files 引用或内联 base64 发送图片。声明 `systemPromptUpdate: in-history` 的模型保留初始顶层 system，在对应 user/tool-result 轮次之后发送新的 system 增量；未声明能力时，将所有存活系统消息拼接为顶层 system。回放元数据保留模型与思考签名。无效的回放元数据产生警告并省略签名，不丢弃文本或工具历史。 模型条目可声明 `toolUpdate: addition-only` 或 `in-history`；默认 `deepseek-flash` 条目声明 `addition-only`。投影后的 developer 工具更新转换为 system 角色的 `tool_addition` 和 `tool_removal` 块，引用已声明名称，延迟声明携带 `defer_loading`。包含这些块的请求发送 `mid-conversation-tool-changes-2026-07-01` beta 请求头。 Messages 会省略 assistant 的空文本块，并跳过转换后没有内容的 assistant 消息，包括其他协议保存的历史。已存储的 Session 内容保持原样。 系统文本块分别去除首尾空白并忽略空块；适配器将它们以空行分隔，生成提供方的 system 字符串。
+Messages 以内容块发送文本、思考、工具调用和工具结果，以 `output_config.effort` 发送推理强度，并以 Files 引用或内联 base64 发送图片。声明 `systemPromptUpdate: in-history` 的模型保留初始顶层 system，在对应 user/tool-result 轮次之后发送新的 system 增量；未声明能力时，将所有存活系统消息拼接为顶层 system。回放元数据保留模型与思考签名。无效的回放元数据产生警告并省略签名，不丢弃文本或工具历史。 模型条目可声明 `toolUpdate: addition-only` 或 `in-history`；默认 `deepseek-flash` 与 `deepseek-v4-pro` 条目声明 `addition-only`。投影后的 developer 工具更新转换为 system 角色的 `tool_addition` 和 `tool_removal` 块，引用已声明名称，延迟声明携带 `defer_loading`。包含这些块的请求发送 `mid-conversation-tool-changes-2026-07-01` beta 请求头。 Messages 会省略 assistant 的空文本块，并跳过转换后没有内容的 assistant 消息，包括其他协议保存的历史。已存储的 Session 内容保持原样。 系统文本块分别去除首尾空白并忽略空块；适配器将它们以空行分隔，生成提供方的 system 字符串。
 
 <a id="account-credentials"></a>
 ### 账号凭据
@@ -215,7 +215,7 @@ loop 保留的响应块会追加到下一个请求，并保留其更早的可复
 - **请求使用原始 `fetch`，而非 `@cordisjs/plugin-http`**——没有共享代理或拦截配置。
 - **Messages 历史内 system 更新需要保留用户或工具结果轮次**——若更新后的全部用户输入都被省略，且前一个协议轮次是 assistant，序列化会在下一个 assistant 之前或请求结束处以 `UNSUPPORTED_CONTENT` 失败。文本或空工具结果可以保留该轮次。不支持将更新移到更早的轮次；[输入历史参考](README.zh.md)记录了排序约束。
 - **图片仅作为持久附件输入**。适配器不支持直接外部 URL 和 assistant 图片输出。网关在退避期间恢复后，要等跳过规定次数的请求才会收到新上传。
-- 默认目录公布 `deepseek-flash` 及其文本、图片和历史内更新能力，不探测网关可用性。网关开放该 ID 前，请求可能以 `INVALID_REQUEST` 失败。
+- 默认目录公布两个官方模型，以及它们已声明的模态和缓存友好的历史内更新模式，不探测网关可用性。网关开放该 ID 前，请求可能以 `INVALID_REQUEST` 失败。
 - [adapter.e2e.ts](tests/adapter.e2e.ts) 与 [runtime.e2e.ts](tests/runtime.e2e.ts) 中的真实 API 检查需要 `DEEPSEEK_API_KEY`。将 `DEEPSEEK_IN_HISTORY_MODEL` 设为受支持的非空模型 ID 可运行 system 更新检查：适配器套件使用 `high` 思考强度，运行时套件则在关闭思考时比较缓存复用，可能受到指令遵循不稳定的影响。运行时图片用例还需要 `DEEPSEEK_FLASH_E2E=1` 或 `DEEPSEEK_VISION_E2E=1`。
 
 <a id="dev-note"></a>

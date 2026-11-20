@@ -16,3 +16,13 @@ it('treats any other catalog as customized', () => {
   expect(isBuiltInCatalog([pro!, flash!])).toBe(false)
   expect(isBuiltInCatalog([])).toBe(false)
 })
+
+it('declares one cache-friendly transcript mode set for both official models', () => {
+  // Both ids are served by the same Messages endpoint, so a mode one declares
+  // holds for the other; a missing declaration silently rewrites the prefix.
+  const modes = resolveAdapterOptions({}).models.map(model => [model.systemPromptUpdate, model.toolUpdate])
+  expect(modes).toEqual([
+    ['in-history', 'addition-only'],
+    ['in-history', 'addition-only'],
+  ])
+})
