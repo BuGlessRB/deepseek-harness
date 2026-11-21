@@ -38,8 +38,10 @@ import type { BuiltinLlmFailureCode } from './error.ts'
 import { normalizeLlmFailure } from './adapter-failure.ts'
 import {
   contentHasFile, contentHasImage, fileHandleText, projectFilesToText, projectImagesForTextModel, projectToolUpdates,
+  visitRequestAttachments,
 } from './content.ts'
-import type { FileAttachmentRef, ImageAttachmentRef, ImageRequestTarget } from '@deepseek-ai/dsh-attachment'
+import type { AttachmentAccessPaths } from './content.ts'
+import type { AttachmentId, FileAttachmentRef, ImageAttachmentRef, ImageRequestTarget } from '@deepseek-ai/dsh-attachment'
 
 export * from './attribution.ts'
 export * from './brand.ts'
@@ -685,6 +687,32 @@ export class LlmRuntime extends TypertRemoteService {
     return fileHandleText(ref, this.fileReadPath(ref))
   }
 
+  /**
+   * Resolve the execution-world read path of every durable attachment
+   * occurrence in one request, keyed by attachment id. Model-visible handle
+   * text embeds these paths, so a request that resolves one attachment
+   * differently rewrites bytes the Session log has already sent.
+   * @param messages - complete request inputs.
+   * @returns resolved paths; an occurrence the current execution world cannot
+   *   read, or whose durable reference is invalid, is absent.
+   */
+  attachmentAccessPaths(messages: readonly RequestMessage[]): AttachmentAccessPaths {
+    const paths = new Map<AttachmentId, string>()
+    visitRequestAttachments(messages, (occurrence) => {
+      const { attachmentId, path } = occurrence.kind === 'image'
+        ? {
+          attachmentId: occurrence.image.attachmentId,
+          path: this.processHostPath(() => this.ctx.get('attachments')?.imageHostPath(occurrence.image)),
+        }
+        : {
+          attachmentId: occurrence.file.attachmentId,
+          path: this.processHostPath(() => this.ctx.get('attachments')?.fileHostPath(occurrence.file)),
+        }
+      if (path !== undefined) paths.set(attachmentId, path)
+    })
+    return paths
+  }
+
   /** Detach typed adapter-owned modality metadata. */
   private detachedModalities(modalities: readonly ModelModality[] | undefined): ModelModality[] | undefined {
     return modalities === undefined ? undefined : [...modalities]
@@ -1023,13 +1051,15 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   /**
-   * Resolve the current execution-world read path of one durable file
-   * reference through the mounted attachment and filesystem providers.
+   * Map one attachment provider's host object location into the mounted tool
+   * execution world.
+   * @param hostPathOf - reads the provider-owned absolute host path.
+   * @returns the execution-world read path, or undefined when no provider maps it.
    */
-  private fileReadPath(ref: FileAttachmentRef): string | undefined {
+  private processHostPath(hostPathOf: () => string | undefined): string | undefined {
     let hostPath: string | undefined
     try {
-      hostPath = this.ctx.get('attachments')?.fileHostPath(ref)
+      hostPath = hostPathOf()
     } catch {
       // A malformed durable reference degrades this occurrence to the no-path
       // handle instead of failing every later request over the same log.
@@ -1040,6 +1070,14 @@ export class LlmRuntime extends TypertRemoteService {
     // only this one mapping method is consumed.
     const fs = this.ctx.get('fs') as { processPathFromHostPath(hostPath: string): string | undefined } | undefined
     return fs?.processPathFromHostPath(hostPath)
+  }
+
+  /**
+   * Resolve the current execution-world read path of one durable file
+   * reference through the mounted attachment and filesystem providers.
+   */
+  private fileReadPath(ref: FileAttachmentRef): string | undefined {
+    return this.processHostPath(() => this.ctx.get('attachments')?.fileHostPath(ref))
   }
 
   /**

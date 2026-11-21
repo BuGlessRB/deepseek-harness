@@ -5,7 +5,7 @@ import type { RequestMessage } from './types.ts'
 import type { Message } from './message.ts'
 import type { MessageId } from './types.ts'
 import type {
-  AttachmentStore, FileAttachmentRef, ImageAttachmentRef, ImageMediaType, RequestImageAttachment,
+  AttachmentId, AttachmentStore, FileAttachmentRef, ImageAttachmentRef, ImageMediaType, RequestImageAttachment,
 } from '@deepseek-ai/dsh-attachment'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 
@@ -43,6 +43,47 @@ export function resolveImageAttachmentAccess(
   if (hostPath === undefined) return undefined
   const readonlyPath = mapHostPath(hostPath)
   return readonlyPath === undefined ? undefined : { readonlyPath }
+}
+
+/**
+ * Execution-world read paths resolved for the durable attachments of one
+ * request, keyed by attachment id. Model-visible handle text embeds these
+ * paths, so two requests that resolve one attachment differently send
+ * different bytes for the same already-sent message.
+ */
+export type AttachmentAccessPaths = ReadonlyMap<AttachmentId, string>
+
+/** One durable attachment occurrence in request content. */
+export type RequestAttachmentOccurrence =
+  | { readonly kind: 'image'; readonly image: ImageAttachmentRef }
+  | { readonly kind: 'file'; readonly file: FileAttachmentRef }
+
+/**
+ * Visit every durable attachment occurrence of one request in message order.
+ * Images and files are reported separately because each attachment provider
+ * surface resolves its own stored object.
+ * @param messages - complete request inputs.
+ * @param visit - called once per occurrence.
+ */
+export function visitRequestAttachments(
+  messages: readonly RequestMessage[],
+  visit: (occurrence: RequestAttachmentOccurrence) => void,
+): void {
+  for (const message of messages) {
+    for (const block of message.content) {
+      switch (block.type) {
+        case 'image':
+          visit({ kind: 'image', image: block.attachment })
+          break
+        case 'file':
+          visit({ kind: 'file', file: block.attachment })
+          break
+        default:
+          // Other block kinds carry no durable attachment.
+          break
+      }
+    }
+  }
 }
 
 function quoted(value: string): string {

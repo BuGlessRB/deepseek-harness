@@ -271,11 +271,11 @@ describe('declared routes claiming conversation updates', () => {
     expect(requests[0]).toMatchObject({
       messages: [
         { role: 'system', content: 'initial' },
-        { role: 'user', content: 'first' },
+        { role: 'user', content: [{ type: 'text', text: 'first' }] },
         { role: 'system', content: 'updated' },
-        { role: 'user', content: 'next' },
+        { role: 'user', content: [{ type: 'text', text: 'next' }] },
         { role: 'system', tools: [{ type: 'function', function: { name: 'search' } }] },
-        { role: 'system', content: 'Instruction one.\nInstruction two.' },
+        { role: 'system', content: 'Instruction one.\n\nInstruction two.' },
       ],
     })
   })

@@ -165,7 +165,7 @@ System text and schemas are paid again on every step, and retained system additi
 
 #### KV Cache effect
 
-Changed sections append without rewriting earlier messages. Compaction replaces the selected range with a summary; the next model attempt consolidates current instructions at the head. Adapter serialization determines whether the wire prefix remains identical; native in-history updates and pi-ai reminders preserve it, while a combined top-level system field changes it. Tool declaration changes have their own cache effects.
+Changed sections append without rewriting earlier messages. Compaction replaces the selected range with a summary; the next model attempt consolidates current instructions at the head. Adapter serialization determines whether the wire prefix remains identical; native in-history updates and pi-ai reminders preserve it, while a combined top-level system field changes it. Tool declaration changes have their own cache effects. File and image handle text names a path resolved for the current execution world rather than a path stored in the log, so remounting the attachment or filesystem provider, or resuming the Session in another execution world, re-renders bytes of messages already sent; the loop logs a series start for it so the invalidation has a recorded cause.
 
 ### Runtime context reminders
 

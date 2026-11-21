@@ -357,6 +357,66 @@ describe('LlmRuntime', () => {
     }
   })
 
+  it('resolves execution-world access paths for every durable attachment of a request', async () => {
+    const file = { attachmentId: brandString<AttachmentId>(`sha256:${'ab'.repeat(32)}`), name: 'notes.txt', bytes: 3 }
+    const image = {
+      attachmentId: brandString<AttachmentId>(`sha256:${'cd'.repeat(32)}`),
+      mediaType: 'image/png' as const,
+      bytes: 4,
+      width: 1,
+      height: 1,
+    }
+    const request = [
+      createUserMessage({ content: [{ type: 'text', text: 'x' }, { type: 'file', attachment: file }], source: { kind: 'user' } }),
+      createUserMessage({ content: [{ type: 'image', attachment: image }], source: { kind: 'user' } }),
+    ]
+    const cases = [
+      {
+        name: 'files and images both resolve through the mounted providers',
+        attachments: {
+          fileHostPath: () => '/host/files/notes.txt',
+          imageHostPath: () => '/host/images/object.png',
+        },
+        fs: { processPathFromHostPath: (hostPath: string) => hostPath.replace('/host', '/world') },
+        expected: [[file.attachmentId, '/world/files/notes.txt'], [image.attachmentId, '/world/images/object.png']],
+      },
+      {
+        name: 'no mounted filesystem maps a host path',
+        attachments: { fileHostPath: () => '/host/files/notes.txt', imageHostPath: () => '/host/images/object.png' },
+        expected: [],
+      },
+      {
+        name: 'no attachment provider exposes a host path',
+        attachments: { fileHostPath: () => undefined, imageHostPath: () => undefined },
+        fs: { processPathFromHostPath: () => '/world/object' },
+        expected: [],
+      },
+      {
+        name: 'no attachment provider is mounted',
+        fs: { processPathFromHostPath: () => '/world/object' },
+        expected: [],
+      },
+      {
+        name: 'a malformed durable reference degrades to no path',
+        attachments: {
+          fileHostPath: () => { throw new Error('invalid ref') },
+          imageHostPath: () => { throw new Error('invalid ref') },
+        },
+        fs: { processPathFromHostPath: () => '/world/object' },
+        expected: [],
+      },
+    ]
+
+    for (const fixture of cases) {
+      const ctx = new Context()
+      if (fixture.attachments !== undefined) ctx.provide('attachments', fixture.attachments as never)
+      if (fixture.fs !== undefined) ctx.provide('fs', fixture.fs as never)
+      await ctx.plugin(LlmRuntime)
+
+      expect([...ctx.llm.attachmentAccessPaths(request)], fixture.name).toEqual(fixture.expected)
+    }
+  })
+
   it('captures provider-owned retry policy at registration and defaults omission', async () => {
     const configured = resolveRetryPolicy({ mode: 'always' }, 'test retryPolicy')
     const adapter = new class extends ScriptedAdapter {

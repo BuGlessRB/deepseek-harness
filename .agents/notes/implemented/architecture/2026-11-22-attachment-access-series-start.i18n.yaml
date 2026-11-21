@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-11-22-attachment-access-series-start.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-11-22-attachment-access-series-start.md
+/agent-note-a-changed-attachment-path-starts-a-request-series:
+  en: b6692a4ee1c992a7
+  zh: efecffda9f9f0e63
+/agent-note-a-changed-attachment-path-starts-a-request-series/problem:
+  en: 53955ab4c4f3b054
+  zh: 7d7991adcc76aa10
+/agent-note-a-changed-attachment-path-starts-a-request-series/decision:
+  en: 90a14c8cf2de8094
+  zh: 4e6819974d2d35b5
+/agent-note-a-changed-attachment-path-starts-a-request-series/alternatives-considered:
+  en: 561f584ef28c42be
+  zh: 01f08d0500d91e3d
+/agent-note-a-changed-attachment-path-starts-a-request-series/consequences:
+  en: 1c57a67da7870ec6
+  zh: dd4d6a1544eb7f1b
+/agent-note-a-changed-attachment-path-starts-a-request-series/related:
+  en: e92781a6aaafc934
+  zh: c6e80d54594aaabc

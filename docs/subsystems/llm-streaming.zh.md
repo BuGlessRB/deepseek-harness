@@ -1138,6 +1138,17 @@ imageRequestTarget(provider: string, model: string, image: ImageAttachmentRef): 
 fileRequestText(ref: FileAttachmentRef): string
 
 /**
+ * Resolve the execution-world read path of every durable attachment
+ * occurrence in one request, keyed by attachment id. Model-visible handle
+ * text embeds these paths, so a request that resolves one attachment
+ * differently rewrites bytes the Session log has already sent.
+ * @param messages - complete request inputs.
+ * @returns resolved paths; an occurrence the current execution world cannot
+ *   read, or whose durable reference is invalid, is absent.
+ */
+attachmentAccessPaths(messages: readonly RequestMessage[]): AttachmentAccessPaths
+
+/**
  * Discover models advertised by one registered provider. Catalog membership
  * does not constrain core routing. Catalog-driven entry points may restrict
  * selection and submission to the advertised models.
@@ -1197,7 +1208,7 @@ async prepareCall( config: LlmCallConfig, signal?: AbortSignal, configure?: Conf
 stream(options: GenerateOptions): AsyncIterable<StreamChunk>
 ```
 
-Types: [FileAttachmentRef](attachment.zh.md) · [ImageAttachmentRef](attachment.zh.md) · [ImageRequestTarget](attachment.zh.md)
+Types: [AttachmentAccessPaths](attachment.zh.md) · [FileAttachmentRef](attachment.zh.md) · [ImageAttachmentRef](attachment.zh.md) · [ImageRequestTarget](attachment.zh.md)
 
 Source: [`packages/llm/llm/src/index.ts`](../../packages/llm/llm/src/index.ts)
 

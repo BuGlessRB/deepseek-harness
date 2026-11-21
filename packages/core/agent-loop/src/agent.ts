@@ -20,6 +20,7 @@ import type {
 } from '@deepseek-ai/dsh-agent'
 import { AgentModel, agentEvents, assembleContextFor } from '@deepseek-ai/dsh-agent'
 import type { GenerateOptions, LlmCallConfig, Message, PreparedLlmCall } from '@deepseek-ai/dsh-llm'
+import type { AttachmentAccessPaths } from '@deepseek-ai/dsh-llm'
 import {
   LlmError,
   createAssistantMessage,
@@ -125,6 +126,8 @@ export class ReactLoopAgent implements Agent {
   private requestHeaderLogged = false
   /** Surface generation at attachment or the preceding built request. */
   private requestSurfaceGeneration: number
+  /** Execution-world attachment read paths the preceding request resolved. */
+  private attachmentAccess: AttachmentAccessPaths | undefined
   private readonly runtimeContext: RuntimeContextProjection
   /** Process-local revision of assistant frames for this attached Session. */
   private assistantStreamRevision = 0
@@ -642,6 +645,32 @@ export class ReactLoopAgent implements Agent {
     return { config, ...preparedCall === undefined ? {} : { preparedCall } }
   }
 
+  /**
+   * Whether attachment handle text alone begins a new request series. Handle
+   * text names the execution-world read path of a durable attachment, so
+   * remounting the attachment or filesystem provider, or resuming the Session
+   * in another execution world, changes bytes of messages the log has already
+   * sent and invalidates the provider's cached prefix from the first affected
+   * message on.
+   * @param messages - the request's derived messages.
+   * @param hasPriorHeader - whether the log already carries a request header.
+   * @returns whether the request re-derives handle text for sent history.
+   */
+  private attachmentSeriesStart(messages: readonly Message[], hasPriorHeader: boolean): boolean {
+    const current = this.loopCtx.llm.attachmentAccessPaths(messages)
+    const previous = this.attachmentAccess
+    this.attachmentAccess = current
+    // A loop instance's first request re-derives every path, and the process
+    // that rendered the log may have run in another execution world.
+    if (previous === undefined) return hasPriorHeader && current.size > 0
+    for (const [attachmentId, path] of current) {
+      const sent = previous.get(attachmentId)
+      // An attachment the log has not sent yet adds tail text; it rewrites nothing.
+      if (sent !== undefined && sent !== path) return true
+    }
+    return false
+  }
+
   /** Log the resolved envelope and derive a frozen request from the admitted surface. */
   private buildRequest(
     config: LlmCallConfig,
@@ -661,6 +690,10 @@ export class ReactLoopAgent implements Agent {
     const baseline = this.session.requestHeader()
     const startsSeries = startsRequestSeries
       || this.requestSurfaceGeneration !== surfaceGeneration
+      // The tool-update message below joins the surface after the header
+      // decision, so this derivation is repeated, incrementally, for the
+      // request itself.
+      || this.attachmentSeriesStart(session.deriveMessages(), baseline !== undefined)
     let headerSeq: SessionSeq | undefined
     if (!this.requestHeaderLogged) {
       // Compaction during the first resumed pre-step must still mark a new series.

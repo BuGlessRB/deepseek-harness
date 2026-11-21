@@ -17,6 +17,7 @@ import {
   requiredImageOffload,
   resolveImageAttachmentAccess,
   requestImageHandleText,
+  visitRequestAttachments,
 } from '../src/index.ts'
 import type { ContentBlock, RequestMessage, RequestUserInput, ToolHistory, ToolSchema } from '../src/index.ts'
 
@@ -312,6 +313,28 @@ describe('projectImagesForTextModel', () => {
       { type: 'text', text: '[image omitted because this model accepts text only; attachment sha256:aaaaaaaa]' },
       { type: 'text', text: 'after' },
     ])
+  })
+})
+
+describe('request attachment occurrences', () => {
+  const file = (name: string): Extract<ContentBlock, { type: 'file' }> => ({
+    type: 'file',
+    attachment: { attachmentId: brandString<AttachmentId>(`sha256:${'ab'.repeat(32)}`), name, bytes: 42 },
+  })
+
+  it('reports image and file occurrences in message order and skips other blocks', () => {
+    const messages = [
+      createUserMessage({
+        content: [image(3), { type: 'text', text: 'between' }, file('a.txt')],
+        source,
+      }),
+      createUserMessage({ content: [file('b.txt')], source }),
+    ]
+    const seen: string[] = []
+    visitRequestAttachments(messages, (occurrence) => {
+      seen.push(occurrence.kind === 'image' ? 'image' : occurrence.file.name)
+    })
+    expect(seen).toEqual(['image', 'a.txt', 'b.txt'])
   })
 })
 

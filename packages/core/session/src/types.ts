@@ -283,8 +283,9 @@ export interface RequestContext {
  * header (a new conversation); `'resume'` — a loop instance's first request
  * over a log that already has header events (process restart, fork seed);
  * `'change'` — a later request used a different header; `'series'` — an unchanged
- * header began an explicitly distinct message series or followed a surface
- * replacement. Other reasons carry `startsSeries` when a new series coincides.
+ * header began an explicitly distinct message series, followed a surface
+ * replacement, or re-derived the execution-world paths of attachment handle text
+ * already sent. Other reasons carry `startsSeries` when a new series coincides.
  */
 export type RequestHeaderReason = 'initial' | 'resume' | 'change' | 'series'
 
