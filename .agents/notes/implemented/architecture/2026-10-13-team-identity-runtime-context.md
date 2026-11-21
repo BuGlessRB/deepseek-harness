@@ -14,7 +14,7 @@ A teammate identity embedded in its initial task depends on ordinary history ret
 
 `tool-subagent-control` contributes required `subagent:identity` through `systemPrompt.context()` in ordinary subagent and Team compositions. It derives identity from `ctx.subagents.rootOf(agent)`: the root sees its own Session id, and descendants see their own, direct parent, and root ids. An unavailable root is reported explicitly. Optional-context suppression and Team mode do not remove identity. Agents receive messaging and discovery guidance only while the root is available and each corresponding standard tool is admitted. Team task policy stays in the shared system prompt; task state remains a tool query.
 
-The loop owns logging, retained-snapshot comparison, and re-admission after compaction. A changed role appends the current full runtime-context snapshot after inherited history; unchanged retained context adds no message. No Team-specific retention state, event type, or log migration is introduced. Existing recorded reminders remain historical messages.
+The loop owns logging, retained-entry comparison, and re-admission after compaction. A changed role appends the entries that changed after inherited history, under the [per-entry delivery](2026-11-21-runtime-context-per-entry-delivery.md) rule; unchanged retained context adds no message. No Team-specific retention state, event type, or log migration is introduced. Existing recorded reminders remain historical messages.
 
 This supersedes only the initial-task identity decision in [Agent Teams](../feature/2026-08-05-agent-teams.md#team-identity). [Task-board wait coordination](2026-10-19-team-task-board-inbox.md) keeps ordinary inbox waiting independent of Team-only model guidance.
 
@@ -28,6 +28,6 @@ This supersedes only the initial-task identity decision in [Agent Teams](../feat
 
 ## Consequences
 
-Members pay for identity within the full runtime-context snapshot. Other context changes repeat it, while stable retained context adds no new message. Forks preserve inherited history and append current identity; actual provider cache hits remain best-effort. Existing Team authorization remains in tool execution.
+Members pay for identity once, within the entry that states it. Another entry changing no longer repeats it, while stable retained context adds no new message. Forks preserve inherited history and append current identity; actual provider cache hits remain best-effort. Existing Team authorization remains in tool execution.
 
 Verification covers fresh and fork children, an independent Session fork, optional-context suppression, compaction restoration, unavailable roots, cold resume, and registration disposal. Recorded ordinary subagent and Team workflows pin identity through their shipped compositions; delegated tasks retain final-result return guidance.

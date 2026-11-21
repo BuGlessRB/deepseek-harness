@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-11-21-runtime-context-per-entry-delivery.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-11-21-runtime-context-per-entry-delivery.md
+/agent-note-per-entry-runtime-context-delivery:
+  en: 2f20f53b2fe2bd22
+  zh: 8d28962039dc0964
+/agent-note-per-entry-runtime-context-delivery/problem:
+  en: c6b2c832993ad6f5
+  zh: 601af7c89991e95a
+/agent-note-per-entry-runtime-context-delivery/decision:
+  en: 861744e0e8358eef
+  zh: 27b6bc885b73e1c9
+/agent-note-per-entry-runtime-context-delivery/alternatives-considered:
+  en: 59bffeedfac2942e
+  zh: b6b646c64932b26e
+/agent-note-per-entry-runtime-context-delivery/consequences:
+  en: 2d772723f8cdc45a
+  zh: bf0fd7981a2af136
+/agent-note-per-entry-runtime-context-delivery/related:
+  en: 44ec3a926585153d
+  zh: d40bccec2b437541

@@ -89,7 +89,7 @@ interface PromptSection {
 
 ## 动态提示词上下文
 
-`PromptContext` 是与 `PromptSection` 对应的缓存安全结构。组装会解析这些贡献并排序；agent loop（智能体循环）仅在完整当前快照发生变化或被压缩（compaction）移除时，才会将其记录在保留的模型历史之后。
+`PromptContext` 是与 `PromptSection` 对应的缓存安全结构。组装会解析这些贡献并排序；agent loop（智能体循环）把它们记录在保留的模型历史之后：首次投递记录完整集合，此后只记录发生变化的条目，而在某条贡献退役或压缩（compaction）移除保留消息后再次记录完整集合。只陈述变化条目的消息以 `partial: true` 记录它们。
 
 ```ts type-equiv
 /** Dynamic model context materialized as a durable user-role snapshot. */

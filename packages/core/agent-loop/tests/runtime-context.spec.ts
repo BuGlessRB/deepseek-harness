@@ -17,6 +17,12 @@ const INITIAL = '<system-reminder>\nThe following information describes your cur
 const UPDATED = '<system-reminder>\nThe following information describes your current session. It replaces earlier versions of this context, including any retained in conversation summaries.\n\nnext\n</system-reminder>'
 const CLEARED = '<system-reminder>\nCurrent runtime context: none. Earlier runtime-context snapshots no longer apply.\n</system-reminder>'
 
+/** One partial reminder stating only the entries that changed. */
+function changed(body: string): string {
+  return '<system-reminder>\nThe following session information changed. Each entry below replaces its earlier value, including any retained in conversation summaries.\n\n'
+    + `${body}\n</system-reminder>`
+}
+
 function sections(text: string) {
   return [{ name: 'sandbox:policy', text }]
 }
@@ -52,11 +58,12 @@ describe('RuntimeContextProjection', () => {
     expect(session.surface.nodes).toContain(retained.seq)
     expect(projection.project(sections('retained'))).toBeUndefined()
     expect(projection.project(sections('next'))).toMatchObject({
-      content: [{ type: 'text', text: UPDATED }],
+      content: [{ type: 'text', text: changed('next') }],
       source: {
         kind: SOURCE,
         form: 'snapshot',
         sections: sections('next'),
+        partial: true,
       },
     })
 
@@ -76,7 +83,7 @@ describe('RuntimeContextProjection', () => {
     expect(projection.project(sections('retained'))).toBeUndefined()
 
     const next = projection.project(sections('next'))!
-    expect(next.content).toEqual([{ type: 'text', text: UPDATED }])
+    expect(next.content).toEqual([{ type: 'text', text: changed('next') }])
     session.append('user/message', next, { surfaceOp: 'append' })
     expect(projection.project(sections('next'))).toBeUndefined()
     expect(new RuntimeContextProjection(ctx, session).project(sections('next'))).toBeUndefined()
@@ -85,7 +92,9 @@ describe('RuntimeContextProjection', () => {
     expect(cleared.content).toEqual([{ type: 'text', text: CLEARED }])
     session.append('user/message', cleared, { surfaceOp: 'append' })
     expect(projection.project([])).toBeUndefined()
-    expect(projection.project(sections('next'))?.content).toEqual(next.content)
+    // After a cleared marker the model holds nothing, so the next context is
+    // stated completely rather than as a change.
+    expect(projection.project(sections('next'))?.content).toEqual([{ type: 'text', text: UPDATED }])
   })
 
   it.each([false, true])('overrides context retained in summaries after compaction (resume: %s)', async (resume) => {
@@ -148,6 +157,54 @@ describe('RuntimeContextProjection', () => {
     session.append('user/message', message, { surfaceOp: 'append' })
     expect(projection.project([])).toBeUndefined()
     expect(new RuntimeContextProjection(ctx, session).project([])).toBeUndefined()
+  })
+
+  it('states only the contribution that changed and keeps the others in force', async () => {
+    const { ctx, session } = await harness()
+    const projection = new RuntimeContextProjection(ctx, session)
+    const before = [
+      { name: 'sandbox:policy', text: 'workspace-write' },
+      { name: 'approval:policy', text: 'ask' },
+    ]
+    session.append('user/message', projection.project(before)!, { surfaceOp: 'append' })
+    const after = [
+      { name: 'sandbox:policy', text: 'workspace-write' },
+      { name: 'approval:policy', text: 'never' },
+    ]
+    const update = projection.project(after)!
+    expect(update.content).toEqual([{ type: 'text', text: changed('never') }])
+    expect(update.source).toEqual({
+      kind: SOURCE,
+      form: 'snapshot',
+      sections: [{ name: 'approval:policy', text: 'never' }],
+      partial: true,
+    })
+    session.append('user/message', update, { surfaceOp: 'append' })
+
+    // A resumed projection folds the complete first message and the partial
+    // second one, so it also knows only the approval entry changed.
+    const resumed = new RuntimeContextProjection(ctx, session)
+    const sandbox = [
+      { name: 'sandbox:policy', text: 'danger-full-access' },
+      { name: 'approval:policy', text: 'never' },
+    ]
+    expect(resumed.project(sandbox)?.content).toEqual([{ type: 'text', text: changed('danger-full-access') }])
+    expect(resumed.project(after)).toBeUndefined()
+  })
+
+  it('states the complete context when a contribution retires', async () => {
+    const { ctx, session } = await harness()
+    const projection = new RuntimeContextProjection(ctx, session)
+    session.append('user/message', projection.project([
+      { name: 'sandbox:policy', text: 'workspace-write' },
+      { name: 'approval:policy', text: 'ask' },
+    ])!, { surfaceOp: 'append' })
+    const retired = projection.project([{ name: 'approval:policy', text: 'ask' }])!
+    expect(retired.content).toEqual([{
+      type: 'text',
+      text: '<system-reminder>\nThe following information describes your current session. It replaces earlier versions of this context, including any retained in conversation summaries.\n\nask\n</system-reminder>',
+    }])
+    expect(retired.source).toEqual({ kind: SOURCE, form: 'snapshot', sections: [{ name: 'approval:policy', text: 'ask' }] })
   })
 
   it.each([

@@ -123,7 +123,7 @@ loop 在发布工厂前等待必需的注册完成。它对模型选择和 inbox
 
 系统提示词组装由系统服务负责。它捕获来源文本和生命周期；组装的 `systemUpdates()` 在调用时将其与该 Session 的已提交准入比较。循环在首次尝试中、在新接纳用户消息之前追加返回的写入。首次提交即使没有指令也包含系统头节点；空头节点保留在日志中，但不进入派生模型消息。提交前的拒绝或取消不会写入头节点。压缩后的下一次已接纳模型尝试先清空保留的系统增量，再以其组装的完整提示词替换初始系统节点。这些普通 `system/message` 替换属于该开放步骤。头节点重置完成待处理的重建；此前的拒绝或取消会使重建在重启后仍保持待处理。因此，空闲压缩会保持保留的系统显示，直到另一次模型尝试发生。[system-prompt 包](../system-prompt/README.zh.md) 拥有贡献与准入语义。
 
-运行时上下文投影比较已提交 `source.sections` 中有序的名称与文本，不依赖提醒文案。未提交的候选消息不推进其状态。消息文本会转义 `system-reminder` 结束标签，包括大小写及尾随空白变体；日志中的 sections 则保留原始文本。这种包装是格式约定，不是安全边界。
+运行时上下文投影折叠每条已提交 `source.sections` 条目的名称与文本：`partial: true` 的消息并入模型已持有的条目，完整消息则整体替换，均不依赖提醒文案。未提交的候选消息不推进其状态。消息文本会转义 `system-reminder` 结束标签，包括大小写及尾随空白变体；日志中的 sections 则保留原始文本。这种包装是格式约定，不是安全边界。
 
 ### 失败与取消
 
@@ -171,15 +171,15 @@ loop 在发布工厂前等待必需的注册完成。它对模型选择和 inbox
 
 #### 模型看到什么
 
-运行时上下文以 `<system-reminder>` 包装的 user 消息呈现。首份快照以 `The following information describes your current session:` 开头；后续快照以 `The following information describes your current session. It replaces earlier versions of this context, including any retained in conversation summaries.` 开头。贡献未变化时不再注入；压缩移除保留的快照后会重新注入提醒，恢复会话后也如此。有效集合变空时，在同一包装内发送 `Current runtime context: none. Earlier runtime-context snapshots no longer apply.`，并记录空的 sections。
+运行时上下文以 `<system-reminder>` 包装的 user 消息呈现。首份快照陈述全部贡献，以 `The following information describes your current session:` 开头；某一步只改动了部分贡献时，只陈述这些条目，使用 `The following session information changed. Each entry below replaces its earlier value, including any retained in conversation summaries.` 引导，并以 `partial: true` 记录。使某条贡献退役的上下文、模型尚未持有任何内容的上下文，以及压缩移除保留消息之后的快照，都会陈述全部内容，使用 `The following information describes your current session. It replaces earlier versions of this context, including any retained in conversation summaries.` 引导。贡献未变化时不再注入。有效集合变空时，在同一包装内发送 `Current runtime context: none. Earlier runtime-context snapshots no longer apply.`，并记录空的 sections。
 
 #### Token 影响
 
-每条保留的提醒都会增加包装、引导语及贡献内容，后续快照还包含覆盖声明。没有 `source.sections` 的旧快照或清空标记，会在下一次获准请求时刷新一次，即使其文本已经描述了当前状态。
+每条保留的提醒都会增加包装、引导语及其陈述的贡献，因此单条目变化只支付一个条目，而不是整份上下文。没有 `source.sections` 的旧快照或清空标记，会在下一次获准请求时刷新一次，即使其文本已经描述了当前状态。
 
 #### KV Cache 影响
 
-运行时提醒（包括旧记录刷新）追加在现有消息之后，保留该前缀。结构化贡献避免未变化的快照仅因文案而刷新；压缩本身会改变被替换的前缀。
+运行时提醒（包括旧记录刷新与部分更新）追加在现有消息之后，保留该前缀。结构化贡献避免未变化的快照仅因文案而刷新；压缩本身会改变被替换的前缀。
 
 ### 保留的消息历史
 

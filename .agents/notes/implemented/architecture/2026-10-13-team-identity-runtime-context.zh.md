@@ -14,7 +14,7 @@ Status: implemented
 
 `tool-subagent-control` 在普通 subagent 和 Team 组合中通过 `systemPrompt.context()` 提供必需的 `subagent:identity`。它从 `ctx.subagents.rootOf(agent)` 派生身份：根看到自身 Session id，后代看到自身、直接父级和根 id。根不可用时会明确报告。可选上下文抑制和 Team 模式都不会移除身份。只有根可用时，agent 才会分别根据对应标准工具的获准情况收到通信与发现指导。Team 任务策略保留在共享系统提示中；任务状态仍通过工具查询。
 
-Loop 负责日志记录、保留快照比较和压缩后的重新接纳。角色变化会在继承历史之后追加当前完整 runtime-context 快照；保留的 context 未变化时不追加消息。不引入 Team 专属的保留状态、事件类型或日志迁移。已有身份提醒仍作为历史消息保留。
+Loop 负责日志记录、保留条目比较和压缩后的重新接纳。角色变化会在继承历史之后追加发生变化的条目，遵循[逐条目投递](2026-11-21-runtime-context-per-entry-delivery.zh.md)规则；保留的 context 未变化时不追加消息。不引入 Team 专属的保留状态、事件类型或日志迁移。已有身份提醒仍作为历史消息保留。
 
 这仅取代 [Agent Teams](../feature/2026-08-05-agent-teams.zh.md#team-identity) 中将身份放入初始任务的决策。[任务板等待协调](2026-10-19-team-task-board-inbox.zh.md)使普通收件箱等待独立于 Team 专用模型指导。
 
@@ -28,6 +28,6 @@ Loop 负责日志记录、保留快照比较和压缩后的重新接纳。角色
 
 ## Consequences
 
-成员承担完整 runtime-context 快照中的身份 token 成本。其他 context 变化会重复身份，保留的 context 稳定时则不追加消息。Fork 保留继承历史并追加当前身份；提供方实际缓存命中仍为尽力而为。现有 Team 授权仍在工具执行时落实。
+成员只在陈述身份的条目中支付一次身份 token 成本；其他条目变化不再重复身份，保留的 context 稳定时则不追加消息。Fork 保留继承历史并追加当前身份；提供方实际缓存命中仍为尽力而为。现有 Team 授权仍在工具执行时落实。
 
 验证覆盖新建和 fork 子级、独立 Session fork、可选上下文抑制、压缩恢复、不可用根、冷恢复和注册释放。录制的普通 subagent 和 Team 工作流通过各自的分发组合固定身份行为；委派任务保留最终结果返回指导。

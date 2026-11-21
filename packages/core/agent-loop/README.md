@@ -123,7 +123,7 @@ The driver owns one agent for its lifetime and runs inside `ctx.agents.withIniti
 
 System-prompt assembly belongs to the system service. It captures source text and lifecycle; the assembly’s `systemUpdates()` compares them with the Session’s committed admissions when called. The loop appends the returned writes before newly accepted users on the first attempt. The initial commitment includes a system head even without instructions; an empty head stays logged but is omitted from derived model messages. Rejection or cancellation before commitment writes no head. After compaction, the next accepted model attempt clears retained system additions and then replaces the initial system node with the full prompt from its assembly. These ordinary `system/message` replacements belong to that open step. The head reset completes the pending rebuild; rejection or cancellation before it leaves rebuilding pending across restart. Idle compaction therefore leaves the retained system display unchanged until another model attempt. The [system-prompt package](../system-prompt/README.md) owns contributor and admission semantics.
 
-The runtime-context projection compares the ordered names and text in committed `source.sections`, independently of reminder wording. Uncommitted proposals do not advance its state. Closing `system-reminder` tags, including case and trailing-whitespace variants, are escaped in message text while recorded sections retain their original text; this framing is a formatting convention, not a security boundary.
+The runtime-context projection folds the name and text of every committed `source.sections` entry, merging a `partial: true` message into the entries the model already holds and replacing them from a complete one, independently of reminder wording. Uncommitted proposals do not advance its state. Closing `system-reminder` tags, including case and trailing-whitespace variants, are escaped in message text while recorded sections retain their original text; this framing is a formatting convention, not a security boundary.
 
 ### Failure and cancellation
 
@@ -171,15 +171,15 @@ Changed sections append without rewriting earlier messages. Compaction replaces 
 
 #### What the model sees
 
-Runtime context is a `<system-reminder>` user message. Its first snapshot starts with `The following information describes your current session:`; later snapshots start with `The following information describes your current session. It replaces earlier versions of this context, including any retained in conversation summaries.` Unchanged contributions emit nothing; compaction removing the retained snapshot causes a new reminder, including after resume. An empty active set emits `Current runtime context: none. Earlier runtime-context snapshots no longer apply.` inside the same wrapper and records empty sections.
+Runtime context is a `<system-reminder>` user message. Its first snapshot states every contribution and starts with `The following information describes your current session:`; a step that changes some contributions states only those, under `The following session information changed. Each entry below replaces its earlier value, including any retained in conversation summaries.`, and records them with `partial: true`. A context that retires a contribution, a context the model holds nothing of, and a snapshot after compaction removing the retained messages state everything, under `The following information describes your current session. It replaces earlier versions of this context, including any retained in conversation summaries.` Unchanged contributions emit nothing. An empty active set emits `Current runtime context: none. Earlier runtime-context snapshots no longer apply.` inside the same wrapper and records empty sections.
 
 #### Token effect
 
-Each retained reminder adds its wrapper, introduction, and contributions; later snapshots also include the supersession statement. A legacy snapshot or clear marker without `source.sections` is refreshed once on the next admitted request, even when its text already describes the current state.
+Each retained reminder adds its wrapper, introduction, and the contributions it states, so a one-entry change pays one entry instead of the whole context. A legacy snapshot or clear marker without `source.sections` is refreshed once on the next admitted request, even when its text already describes the current state.
 
 #### KV Cache effect
 
-Runtime reminders, including a legacy refresh, append after existing messages and preserve that prefix. Structured contributions prevent a wording-only refresh of an unchanged snapshot; compaction itself changes the replaced prefix.
+Runtime reminders, including a legacy refresh and a partial update, append after existing messages and preserve that prefix. Structured contributions prevent a wording-only refresh of an unchanged snapshot; compaction itself changes the replaced prefix.
 
 ### Retained message history
 

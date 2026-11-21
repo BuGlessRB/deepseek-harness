@@ -89,7 +89,7 @@ interface PromptSection {
 
 ## Dynamic prompt context
 
-`PromptContext` is the cache-safe counterpart to `PromptSection`. The assembly resolves and orders these contributions, while agent-loop logs their complete current snapshot after retained model history only when it changed or compaction removed it.
+`PromptContext` is the cache-safe counterpart to `PromptSection`. The assembly resolves and orders these contributions, while agent-loop logs them after retained model history: the complete set on the first delivery, only the entries that changed afterwards, and the complete set again when an entry retires or compaction removed the retained messages. A message that states only changed entries records them with `partial: true`.
 
 ```ts type-equiv
 /** Dynamic model context materialized as a durable user-role snapshot. */
