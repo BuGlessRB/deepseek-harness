@@ -17,7 +17,7 @@ const CLIENT_SERVICES: Readonly<Record<string, readonly string[]>> = {
   theme: ['getTheme', 'setTheme', 'setFontSize', 'register', 'overrideTokens'],
   uiWorkspace: [
     'openSession', 'openWorkspace', 'forkSession', 'connectWorkspace', 'startSession', 'archiveSession', 'unarchiveSession',
-    'pickDirectory', 'listDirectory', 'createDirectory',
+    'pickDirectory', 'listDirectory', 'directoryStartPath', 'createDirectory',
   ],
   workspaces: ['create', 'rename', 'delete', 'insertSessionBefore', 'archiveSession', 'unarchiveSession'],
 }

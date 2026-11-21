@@ -383,12 +383,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       {
         signature: 'listDirectory(path?: string, signal?: AbortSignal): Promise<DirectoryListing>',
         description: 'List one Host directory level.',
-        parameters: [{ name: 'path', description: 'directory path; absent selects directoryStartPath().' }, { name: 'signal', description: 'cancellation for a superseded scan.' }],
+        parameters: [{ name: 'path', description: 'directory path; absent selects {@link UiWorkspace.directoryStartPath}.' }, { name: 'signal', description: 'cancellation for a superseded scan.' }],
         returns: 'directory entries and breadcrumb ancestry.',
       },
       {
         signature: 'directoryStartPath(): string',
-        description: 'The directory a browsing surface opens at when the caller names no path: the current Session\'s workspace root, else the most recent Workspace, else the Host home.',
+        description: 'The directory a directory-browsing surface opens at when the caller names no path: the current Session\'s workspace root, else the most recent Workspace, else the Host home. A Workspace root is a directory the operator already works in — typically outside the Host home subtree that a confined Host cannot list — while the home remains the answer when no Workspace exists yet.',
         parameters: [],
         returns: 'an absolute Host directory path.',
       },
