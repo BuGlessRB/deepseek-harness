@@ -38,6 +38,10 @@ function runtimeContextText(request: GenerateOptions) {
   return context?.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('\n')
 }
 
+// Pinned model-visible framing of the Team guidance: the section outlives the
+// mode, so its text states when it applies and the tail reports the state.
+const TEAM_GUIDANCE = 'Agent Teams guidance. Apply it only while the current session information reports Agent Teams as enabled.'
+
 const SIGNAL = new AbortController().signal
 const TEAM_TOOLS = [
   'team_task_create',
@@ -272,7 +276,7 @@ describe('dsh-tool-team', () => {
       expect(teamTool(name)).not.toHaveProperty('isConcurrencySafe')
     }
     const leadPrompt = renderPrompt(leadAssembly)
-    expect(leadPrompt).toContain('Agent Teams is available in this session')
+    expect(leadPrompt).toContain(TEAM_GUIDANCE)
     expect(leadPrompt).toContain('Task readiness never starts an owner')
     expect(leadPrompt).toContain('Task changes do not end wait_agent calls')
     expect(renderContextSnapshot(leadAssembly)).toContain(leadIdentity(lead))
@@ -892,7 +896,10 @@ describe('dsh-tool-team', () => {
     for (const agent of [lead, child]) {
       const built = await assembly(ctx, agent)
       expect(teamTools(built)).toEqual([])
-      expect(renderPrompt(built)).not.toContain('Agent Teams is available')
+      // The guidance section outlives the mode so the cached prefix survives;
+      // the runtime context reports the state the model acts on.
+      expect(renderPrompt(built)).toContain(TEAM_GUIDANCE)
+      expect(renderContextSnapshot(built)).toContain('Agent Teams is disabled.')
     }
     expect(ctx.agents.get(child.id)).toBe(child)
     expect(() => ctx.agentTeams.listTasks(child)).toThrow('enable Agent Teams')
@@ -935,19 +942,20 @@ describe('dsh-tool-team', () => {
       else if (index === 2 && ending === 'unloaded') expect(section?.state).toBe('retired')
       else expect(section?.state).toBe('active')
       const prompt = system?.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('\n') ?? ''
-      expect(prompt.includes('Agent Teams is available')).toBe(enabled)
-      expect(prompt.includes('record expected write scopes on shared tasks')).toBe(enabled)
-      if (index === 2) {
-        if (ending === 'unloaded') expect(prompt).toBe('The shared task board is no longer available. Its instructions no longer apply.')
-        else {
-          expect(prompt.trim()).toBe('The earlier instructions from team:policy no longer apply.')
-          expect(system?.content[section!.contentIndex!]).toEqual({ type: 'text', text: '' })
-        }
+      const retired = index === 2 && ending === 'unloaded'
+      // Once admitted the section keeps its bytes; only the runtime context
+      // states the mode, so disabling appends one small snapshot.
+      expect(prompt.includes(TEAM_GUIDANCE)).toBe(index > 0 && !retired)
+      expect(prompt.includes('record expected write scopes on shared tasks')).toBe(index > 0 && !retired)
+      if (retired) {
+        expect(prompt).toBe('The shared task board is no longer available. Its instructions no longer apply.')
       }
       expect(runtimeContextText(request)).toContain(leadIdentity(lead))
-      const contexts = request.messages.findLast(message => message.source?.kind === 'runtime-context')?.source
-      const initial = adapter.requests[0]!.messages.findLast(message => message.source?.kind === 'runtime-context')?.source
-      expect(contexts).toEqual(initial)
+      if (!retired) {
+        expect(runtimeContextText(request)).toContain(enabled ? 'Agent Teams is enabled.' : 'Agent Teams is disabled.')
+      }
+      const snapshots = (candidate: typeof request) => candidate.messages.filter(message => message.source?.kind === 'runtime-context').length
+      if (index > 0) expect(snapshots(request)).toBeGreaterThan(snapshots(adapter.requests[index - 1]!))
     }
   })
 
@@ -979,7 +987,8 @@ describe('dsh-tool-team', () => {
       await disabling
       const built = await assembly(ctx, lead)
       expect(teamTools(built)).toEqual([])
-      expect(renderPrompt(built)).not.toContain('Agent Teams is available')
+      expect(renderPrompt(built)).toContain(TEAM_GUIDANCE)
+      expect(renderContextSnapshot(built)).toContain('Agent Teams is disabled.')
       expect(renderContextSnapshot(built)).toContain(leadIdentity(lead))
     } finally {
       release.resolve(undefined)
@@ -997,11 +1006,12 @@ describe('dsh-tool-team', () => {
     lead.ctx.tools.restrict({ deny: TEAM_TOOLS })
     const built = await assembly(ctx, lead)
     expect(teamTools(built)).toEqual([])
-    expect(renderPrompt(built)).toContain('Agent Teams is available')
+    expect(renderPrompt(built)).toContain(TEAM_GUIDANCE)
     expect(renderContextSnapshot(built)).toContain(leadIdentity(lead))
     await ctx.agentTeams.setEnabled(lead, false)
     const disabled = await assembly(ctx, lead)
-    expect(renderPrompt(disabled)).not.toContain('Agent Teams is available')
+    expect(renderPrompt(disabled)).toContain(TEAM_GUIDANCE)
+    expect(renderContextSnapshot(disabled)).toContain('Agent Teams is disabled.')
     expect(renderContextSnapshot(disabled)).toContain(leadIdentity(lead))
   })
 

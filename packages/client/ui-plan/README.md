@@ -76,11 +76,11 @@ Read these pages when the plan surface is not enough. They move from the chip to
 <a id="model-experience"></a>
 ## Model Experience
 
-Indirectly, through the `/plan off` command line the chip dispatches: `dsh-plan-mode` owns the model-visible policy section, the exit-tool schema, and the logged state that line drives.
+Indirectly, through the `/plan off` command line the chip dispatches: `dsh-plan-mode` owns the model-visible policy section, the `plan:mode` runtime-context state, the exit-tool schema, and the logged state that line drives.
 
 #### KV Cache effect
 
-Entering or leaving plan mode changes the active `plan:policy` system-prompt section and therefore the request prefix; the chip itself adds no prompt content.
+The chip itself adds no prompt content. Entering or leaving plan mode changes only the `plan:mode` runtime-context entry after the first entry, so the request prefix stays reusable.
 
 ## Known Limitations and Deferred Work
 

@@ -31,7 +31,7 @@ Status: implemented
 
 **`snapshot`**——会被同一生产方后续快照取代的当前状态。运行时快照、`time-context`、`tmux-context` 声明它。`renderContextSections()` 暴露出装配时的具名贡献；agent-loop 将它们包装给模型，并记录原始文本，因此内容区能直接归属每一段，而不必切分已经拼好的散文。公开的 `renderContextSnapshot()` 辅助方法保留独立渲染行为。两个单贡献生产方各记录一段。运行时快照的「已清空」标记声明 `form: 'snapshot'` 并携带空 `sections`，内容区回退为面向模型的文本。这一形态本身不表示已有更早的快照。
 
-**`notice`**——刚刚发生了什么的一次性说明。`tool-jobs`、`tool-goal` 收尾、`plan-mode` 切换与 `repeat-tool-reminder` 提醒都带 `summary` 声明它，而该摘要出现在**折叠态**行上：notice 的全部意义就是不展开也能读完。摘要在其输入是调用方文本时自行封顶（任务的 label 与状态 detail 本身没有长度约束）。Goal 状态变更仍是由领域层持有的 `goal/change` 事件，而非模型上下文，因此不声明 form。
+**`notice`**——刚刚发生了什么的一次性说明。`tool-jobs`、`tool-goal` 收尾与 `repeat-tool-reminder` 提醒都带 `summary` 声明它，而该摘要出现在**折叠态**行上：notice 的全部意义就是不展开也能读完。摘要在其输入是调用方文本时自行封顶（任务的 label 与状态 detail 本身没有长度约束）。Goal 状态变更仍是由领域层持有的 `goal/change` 事件，而非模型上下文，因此不声明 form。
 
 **`relay`**——另一个 agent（智能体）发给本 agent 的消息。两个 subagent 定向来源都声明它；发送方以来源已记录的不透明会话 id 呈现，因为本客户端无法把它解析成标题。
 

@@ -152,7 +152,7 @@ describe('plan mode through the agent loop', () => {
 
     const log = agent.session.snapshotEvents()
     expect(planActive(ctx, agent)).toBe(true)
-    const notices = log.filter(event => event.type === 'user/message' && event.data.source.kind !== 'user')
+    const notices = log.filter(event => event.type === 'user/message' && event.data.source.kind === 'plan-mode')
     expect(notices).toHaveLength(1)
     expect(notices[0]?.type === 'user/message' && notices[0].data.content).toEqual([
       { type: 'text', text: 'The user switched this session to plan mode.' },
@@ -219,7 +219,7 @@ describe('plan mode through the agent loop', () => {
     expect(systemNodes[1]?.surfaceOp).toBe('append')
     expect(nextStart?.seq).toBeLessThan(systemNodes[1]?.seq ?? 0)
     expect(systemText(agent)).toContain(PLAN_CONFIG.section)
-    const notice = log.find(event => event.type === 'user/message' && event.data.source.kind !== 'user')
+    const notice = log.find(event => event.type === 'user/message' && event.data.source.kind === 'plan-mode')
     expect(notice?.type === 'user/message' && notice.data.content).toEqual([
       { type: 'text', text: 'The user switched this session to plan mode.' },
     ])
@@ -278,14 +278,13 @@ describe('plan mode through the agent loop', () => {
       await agent.whenIdle()
     }
     const updates = agent.session.snapshotEvents().flatMap(event => event.type === 'system/message' ? [event.data.message] : [])
-    expect(updates).toHaveLength(3)
+    // The policy section is appended once and keeps its bytes; later toggles
+    // change only the `plan:mode` runtime context, so no further system node
+    // is written.
+    expect(updates).toHaveLength(1)
     expect(updates[0]?.content.some(block => block.type === 'text' && block.text.includes(PLAN_CONFIG.section))).toBe(true)
-    expect(updates.slice(1).map(message => message.source.sections?.map(section => section.name)))
-      .toEqual([['plan:status'], ['plan:status']])
-    expect(updates.slice(1).map(textOf)).toEqual([
-      'Plan mode is inactive. The plan-mode instructions no longer apply.',
-      'Plan mode is active. Follow the plan-mode instructions.',
-    ])
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'plan/mode').map(event => event.data.active))
+      .toEqual([true, false, true])
   })
 
   it('a dismissed plan review ends the turn without another model request', async () => {

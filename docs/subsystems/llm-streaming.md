@@ -876,6 +876,8 @@ The [wire reference](../deepseek-llm-api-wire-extensions.md) defines the exact r
 
 `PiAiRequestHeaderContext` contains the prepared call's provider, model, resolved model `baseURL`, and optional Session id and auxiliary purpose. It is immutable, contains no messages or authentication fields, and accompanies a request-owned `Headers` object in the synchronous `llm-pi-ai/request-headers` waterfall. The [adapter's request-header documentation](../../packages/llm/llm-pi-ai/README.md#request-headers) defines contribution ownership, attribution precedence, and failure behavior. This extension point is specific to pi-ai inference requests.
 
+`PiAiTerminalMessage` is the provider's terminal pi-ai message for one stream call, tagged with the Harness route that made it: the finished response for a completion, or the failed one for an in-stream error. It carries everything pi-ai retained from the wire, including usage statistics outside the Harness `TokenUsage` vocabulary, and reaches observers through the synchronous `llm-pi-ai/terminal-message` event after the call settles. It is model-hidden and pi-ai specific.
+
 ## Service and provider contracts
 
 `LlmAdapter` is the provider contract: subclass, implement `stream()`, and register one adapter instance with `ctx.llm.registerAdapter(providers, adapter)`. `GenerateOptions.provider` selects the registered adapter; `GenerateOptions.model` is passed to that adapter and need not be registered at lifecycle start. Duplicate provider routes fail atomically. Optional `providerRetryPolicy()` is captured per route with normal defaults, while `providerInfo()` and asynchronous `listModels()` feed `LlmRuntime.listProviders()` / `listModels()` with detached selector metadata. That catalog is advisory rather than a request whitelist: the adapter remains authoritative and may accept unlisted model ids. One asynchronous `resolveModel()` query returns exact model identity plus optional correctness-sensitive context capacity, an adapter-configured `defaultMaxTokens`, and ordered model-owned reasoning ids with an optional deployment default; absent fields mean unavailable metadata or provider-owned behavior, not invalid catalog membership. The resolver receives optional cancellation and must settle promptly after abort. `LlmRuntime.resolveModelInfo()` validates and detaches the aggregate. At the final adapter boundary, `resolveCallConfig()` materializes the output default only when `maxTokens` is absent and validates and materializes reasoning, so direct calls cannot bypass either configured behavior; direct dispatch captures one registration before awaiting that resolution. The agent loop instead uses `prepareCall()` to keep the same registration across model resolution, durable header logging, and dispatch, retain detached context metadata from that exact lookup, and report which config fields the adapter defaulted. Adapter lookup happens at the terminal continuation of the `llm/stream` waterfall, so a listener may short-circuit the call or route a mutable one-shot request before lookup. AgentLoop observes a request attempt once the outer waterfall returns a stream handle; that limited boundary does not prove a lazy terminal adapter was constructed or began provider I/O. The `block-start` / `block-end` `index` correlation and the assembler together mean an adapter only has to emit well-formed chunks — block reassembly is not each adapter's problem. [architecture.md](../architecture.md#turn-flow) shows where `ctx.llm.stream()` and the `llm/stream` waterfall sit in one turn.
@@ -1293,4 +1295,31 @@ Prepare headers for one pi-ai inference call, excluding model discovery. Listene
 ```
 
 Source: [`packages/llm/llm-pi-ai/src/index.ts`](../../packages/llm/llm-pi-ai/src/index.ts)
+
+<a id="llm-pi-aiterminal-message--emit"></a>
+
+#### `llm-pi-ai/terminal-message` — emit
+
+Observe the provider's terminal pi-ai message for one stream call, dispatched by `llm-pi-ai` after the provider's final event and before the terminal `usage` chunk leaves the adapter. A completion calls it once with pi-ai's finished message; an in-stream failure calls it with the failed one.
+
+Model-hidden observation, never model input: a listener must not alter the message, must be synchronous, and must never throw on provider data, because a throw fails the model request it observes.
+
+```ts cordis-catalog
+/**
+ * Observe the provider's terminal pi-ai message for one stream call,
+ * dispatched by `llm-pi-ai` after the provider's final event and before
+ * the terminal `usage` chunk leaves the adapter. A completion calls it
+ * once with pi-ai's finished message; an in-stream failure calls it with
+ * the failed one.
+ *
+ * Model-hidden observation, never model input: a listener must not alter
+ * the message, must be synchronous, and must never throw on provider data,
+ * because a throw fails the model request it observes.
+ * @mode emit
+ * @param detail - the route that made the call and the native message it ended with.
+ */
+'llm-pi-ai/terminal-message'(detail: PiAiTerminalMessage): void
+```
+
+Source: [`packages/llm/llm-pi-ai/src/types.ts`](../../packages/llm/llm-pi-ai/src/types.ts)
 <!-- END GENERATED cordis-surface -->

@@ -28,6 +28,9 @@ const testToolSignal = new AbortController().signal
 const TEST_MODEL_SELECTION = { provider: 'test', model: 'test' }
 
 const TEST_PLAN_SECTION = 'Test plan mode instructions.'
+// The section outlives the mode, so its fixed framing states when it applies;
+// the `plan:mode` runtime context carries the state.
+const PLAN_GUIDANCE_PREAMBLE = 'Plan mode guidance. Apply it only while the current session information reports plan mode as active.'
 const PLAN_CONFIG = { section: TEST_PLAN_SECTION } satisfies PlanModeConfig
 
 interface QuestionAnswerer {
@@ -473,7 +476,7 @@ describe('the soft layer', () => {
     agent.session.append('plan/mode', { active: true })
     const planAssembly = await assembleFor(ctx, agent)
     expect(planAssembly.tools.map(tool => tool.name)).toEqual([EXIT_PLAN_MODE, 'read', 'write'])
-    expect(planAssembly.sections.find(section => section.name === 'plan:policy')?.text).toBe(`The following instructions apply only while plan mode is active.\n\n${TEST_PLAN_SECTION}`)
+    expect(planAssembly.sections.find(section => section.name === 'plan:policy')?.text).toBe(`${PLAN_GUIDANCE_PREAMBLE}\n\n${TEST_PLAN_SECTION}`)
 
     agent.session.append('plan/mode', { active: false })
     const leftAssembly = await assembleFor(ctx, agent)
@@ -487,7 +490,7 @@ describe('the soft layer', () => {
     const assembly = await ctx.systemPrompt.assemble()
     expect(assembly.tools.map(tool => tool.name)).toEqual([EXIT_PLAN_MODE, 'read'])
     expect(assembly.sections.find(section => section.name === 'plan:policy')?.text).toBe('')
-    expect(assembly.sections.find(section => section.name === 'plan:status')?.text).toBe('')
+    expect(assembly.contexts.find(context => context.name === 'plan:mode')?.text).toBe('')
   })
 
   it('keeps the full toolset in plan mode and renders the configured mode section', async () => {
@@ -496,7 +499,7 @@ describe('the soft layer', () => {
     const agent = await agentWithSession(ctx, 'agent-1', { active: true })
     const assembly = await assembleFor(ctx, agent)
     expect(assembly.tools.map(tool => tool.name).sort()).toEqual([EXIT_PLAN_MODE, 'read', 'todo_write', 'write'])
-    expect(assembly.sections.find(section => section.name === 'plan:policy')?.text).toBe(`The following instructions apply only while plan mode is active.\n\n${TEST_PLAN_SECTION}`)
+    expect(assembly.sections.find(section => section.name === 'plan:policy')?.text).toBe(`${PLAN_GUIDANCE_PREAMBLE}\n\n${TEST_PLAN_SECTION}`)
   })
 
   it('keeps independently registered tools available across plan changes', async () => {
@@ -1026,7 +1029,7 @@ describe('exit_plan_mode', () => {
     const assembly = await assembleFor(ctx, agent)
     expect(assembly.tools.some(tool => tool.name === EXIT_PLAN_MODE)).toBe(true)
     expect(assembly.sections.find(section => section.name === 'plan:policy')?.text).toContain('Test plan mode instructions.')
-    expect(assembly.sections.find(section => section.name === 'plan:status')?.text).toBe('Plan mode is inactive. The plan-mode instructions no longer apply.')
+    expect(assembly.contexts.find(context => context.name === 'plan:mode')?.text).toBe('Plan mode is inactive.')
     await boundary(ctx, agent, 'step-start')
     expect(foldPlanMode(agent.session.snapshotEvents())).toBe(false)
     const afterExit = await assembleFor(ctx, agent)

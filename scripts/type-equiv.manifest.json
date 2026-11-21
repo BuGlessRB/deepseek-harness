@@ -314,6 +314,11 @@
     },
     {
       "doc": "docs/subsystems/agent-team.md",
+      "symbol": "TeamMode",
+      "source": "packages/team/agent-team/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/agent-team.md",
       "symbol": "TeamMemberSnapshot",
       "source": "packages/team/agent-team/src/types.ts"
     },

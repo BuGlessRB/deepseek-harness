@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-rc.3/plan-and-team-policy-tail-state/guide.md
+/:
+  en: cf9d6ec676647d3b
+  zh: 5ecab1e4cee684df
+/plan-and-team-guidance-stay-in-the-prompt-the-mode-state-rides-the-tail:
+  en: 78defd49e988de03
+  zh: caf3edd939c833ca
+/plan-and-team-guidance-stay-in-the-prompt-the-mode-state-rides-the-tail/change:
+  en: 05378b4bd370442e
+  zh: d0936025e541af83
+/plan-and-team-guidance-stay-in-the-prompt-the-mode-state-rides-the-tail/migration:
+  en: d58124c8b4576b78
+  zh: 37b90ba7d894e5f5

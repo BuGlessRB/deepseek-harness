@@ -112,9 +112,25 @@ interface TeamProjection {
 }
 ```
 
+`ctx.agentTeams.mode()` reports both the saved selection and whether the tree has ever enabled Team mode, which keeps the policy section in the system prompt after the mode is switched off:
+
+```ts type-equiv
+/** Team mode shared by one subagent tree, as {@link TeamService.mode} reports it. */
+interface TeamMode {
+  /** Whether Team tools and guidance apply to the current step. */
+  readonly enabled: boolean
+  /**
+   * Whether this tree has ever enabled Team mode. The Team guidance section is
+   * included from then on, so a mode change reaches the model through the
+   * runtime context instead of a rewritten request prefix.
+   */
+  readonly entered: boolean
+}
+```
+
 ## Replay
 
-The `agentTeam` projection replays task records selected by `TeamId` and the Session’s own mode selections. Subagent discovery owns current tree membership and ignores inherited catalog authority. Session event `seq` and `time` own ordering and timing. Committed durable generations are preserved. The [package README](../../packages/team/agent-team/README.md) defines task operations and limits.
+The `agentTeam` projection replays task records selected by `TeamId` and the Session’s own mode selections. It also folds whether the tree ever enabled Team mode, so a later switch reaches the model through the `team:mode` [runtime context](system-prompt.md) instead of a prompt rewrite. Subagent discovery owns current tree membership and ignores inherited catalog authority. Session event `seq` and `time` own ordering and timing. Committed durable generations are preserved. The [package README](../../packages/team/agent-team/README.md) defines task operations and limits.
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -134,9 +150,20 @@ Agent Teams service backed by the exact live Lead Session log.
 /**
  * Read the Team selection shared by the caller's subagent tree.
  * @param caller - exact live root or descendant.
- * @returns whether Team tools and guidance are enabled.
+ * @returns whether Team tools apply to the current step. The guidance section
+ * is reported separately by {@link mode}, because it outlives the selection.
  */
 isEnabled(caller: Agent): boolean
+
+/**
+ * Read the Team mode shared by the caller's subagent tree.
+ * @param caller - exact live root or descendant.
+ * @returns the current selection, and whether this tree has ever enabled Team
+ * mode — which keeps the Team guidance section in the system prompt after
+ * the mode is switched off, so a mode change reaches the model through the
+ * runtime context instead of a rewritten request prefix.
+ */
+mode(caller: Agent): TeamMode
 
 /**
  * Save a root Session's Team selection without stopping children or deleting tasks.

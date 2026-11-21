@@ -87,15 +87,15 @@ kind: "package-reference"
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 插件入口、已移除键拒绝、Team 策略，以及四个条件任务工具 |
+| [`src/index.ts`](src/index.ts) | 插件入口、已移除键拒绝、Team 策略段落与 `team:mode` context，以及四个条件任务工具 |
 
 ### 策略与工具
 
-一次插件注册提供动态的 `team:policy` 段落和四个条件任务工具。各提供方读取调用者根 Session 的选择，包括 fork 子级。根不可用时禁用 Team 工具与指导。树权限从 `ctx.subagents.rootOf(agent)` 派生；在 `ctx.agentTeams` 中任务负责人保留为 Session id。所有者参数通过 `ctx.subagents.resolveName()` 解析，解析不授予权限。结果以 `owner: ownerName ?? ownerId` 取代保存的 `ownerId` 和 `ownerName` 字段。展示任务或编辑其内容无需读取后代目录。身份、发现、通信和等待属于 [subagent 控制工具](../../subagent/tool-subagent-control/README.zh.md)，切换 Team 模式时归属不变；开启 Team 模式只会去掉其中的结果汇报要求。subagent 运行时负责投递最终结果。
+一次插件注册提供 `team:policy` 段落、`team:mode` runtime context，以及四个条件任务工具。各提供方读取调用者根 Session 的选择，包括 fork 子级。根不可用时报告 Team 模式不可用，因此工具与指导都不适用。树权限从 `ctx.subagents.rootOf(agent)` 派生；在 `ctx.agentTeams` 中任务负责人保留为 Session id。所有者参数通过 `ctx.subagents.resolveName()` 解析，解析不授予权限。结果以 `owner: ownerName ?? ownerId` 取代保存的 `ownerId` 和 `ownerName` 字段。展示任务或编辑其内容无需读取后代目录。身份、发现、通信和等待属于 [subagent 控制工具](../../subagent/tool-subagent-control/README.zh.md)，在切换 Team 模式时保持不变。subagent 运行时负责投递最终结果。
 
 ### 按作用域注册与拆除
 
-工具的 `when` 条件在步骤准备时求值，包括新建、分叉和恢复的 Agent 的首个步骤。策略文本在提示词组装时求值。策略已准入后，禁用 Team 模式会追加撤销通知；卸载此插件会在下一次被接受的组装中追加退出通知。已经准备好的步骤保留其工具选择，但任务操作在开始前检查当前模式。插件释放时由各注册所属的 effect 移除全部注册。
+工具的 `when` 条件在步骤准备时求值，包括新建、分叉和恢复的 Agent 的首个步骤。段落与 runtime context 在提示词组装时求值。已经准备好的步骤保留其工具选择，但任务操作在开始前检查当前模式。插件释放时由各注册所属的 effect 移除全部注册。
 
 </details>
 
@@ -121,12 +121,12 @@ kind: "package-reference"
 
 #### 模型看到什么
 
-每个 Team 成员的 system prompt 都包含一个 `team:policy` 段落；Lead 与每个 teammate 看到相同的文本：
+从调用者所在的树首次启用 Team 模式的那一步起，每个 Team 成员的 system prompt 都包含一个 `team:policy` 段落，其上方是一句固定说明：仅当会话信息报告 Agent Teams 已启用时该指引才适用。Lead 与每个 teammate 看到相同的文本：
 
 ##### Team 策略
 
 ```markdown
-Agent Teams is available in this session.
+Agent Teams guidance. Apply it only while the current session information reports Agent Teams as enabled.
 
 The Team Lead and all teammates share the same working directory and filesystem. Edits are immediately visible to every member. Split write work into disjoint scopes, record expected write scopes on shared tasks, and use task dependencies when work must be ordered. Write-scope overlap is advisory, not a lock.
 
@@ -137,11 +137,25 @@ Task changes do not end wait_agent calls, add inbox messages, or start idle agen
 
 #### Token 影响
 
-该段落是每个 Team 成员每次请求的固定成本。
+从未启用 Team 模式的树不产生开销。首次启用会把该段落加入每个成员之后的每个请求；此后文本不再变化。
 
 #### KV Cache 影响
 
-该文本对 Lead 与每个后代都相同，并且在插件保持加载期间不会变化，因此它保持稳定的 system prompt 前缀，包括父级与其 `subagent_fork` 子级之间。加载或卸载插件会改变每个成员的 system prompt，并使其已缓存前缀失效。
+该文本对 Lead 与每个后代都相同，并且在插件保持加载期间不会变化，因此它保持稳定的 system prompt 前缀，包括父级与其 `subagent_fork` 子级之间。关闭 Team 模式后它仍然保留，只有 `team:mode` runtime context 改变。加载或卸载插件会改变每个成员的 system prompt，并使其已缓存前缀失效。
+
+### Team 模式 runtime context
+
+#### 模型看到什么
+
+每次组装都会在计划模式状态之后携带一条必需的 `team:mode` runtime-context 条目：`Agent Teams is enabled.` 或 `Agent Teams is disabled.`。只有当该状态与模型已持有的快照不同时，循环才会在保留历史之后记录一份新的 runtime-context 快照，因此一次模式切换只花费一条小型追加消息。
+
+#### Token 影响
+
+该状态行只是 runtime-context 快照中的几个 token，而该快照本就承载工作目录、文件策略、审批策略与 subagent 身份。
+
+#### KV Cache 影响
+
+模式切换会在请求末尾追加一份 runtime-context 快照，而不改变 system prompt 或工具列表，因此直到上一步的可缓存前缀仍然命中。启用 Team 模式仍会加入任务工具，因此首次启用需要按路由的工具更新行为支付一次。
 
 ### 任务工具 schema
 

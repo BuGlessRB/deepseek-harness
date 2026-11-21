@@ -235,6 +235,8 @@ const CONTEXT_ORDERS = {
   SANDBOX_POLICY: 110,
   APPROVAL_POLICY: 115,
   SUBAGENT_DELEGATION: 120,
+  PLAN_MODE: 130,
+  TEAM_MODE: 140,
   // Process-specific paths and endpoints stay out of the cached system prompt.
   HARNESS_SOURCE: 200,
   WEB_SURFACE: 210,

@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-11-21-policy-sections-static-tail-state.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-11-21-policy-sections-static-tail-state.md
+/agent-note-policy-sections-are-standing-text-mode-state-rides-the-runtime-context:
+  en: 64efa390f966729b
+  zh: d60824e123c72ca7
+/agent-note-policy-sections-are-standing-text-mode-state-rides-the-runtime-context/problem:
+  en: 51d5a1dbdf842c2d
+  zh: fd7ec37b74e19bfe
+/agent-note-policy-sections-are-standing-text-mode-state-rides-the-runtime-context/decision:
+  en: ac6b4d3d6960ece7
+  zh: 8785b7dd5327e67a
+/agent-note-policy-sections-are-standing-text-mode-state-rides-the-runtime-context/alternatives-considered:
+  en: 0c6837571e036d8c
+  zh: 8d4d8d28e2e0a0f8
+/agent-note-policy-sections-are-standing-text-mode-state-rides-the-runtime-context/consequences:
+  en: eab9e10400c44ff4
+  zh: 751e54e55fe767a1
+/agent-note-policy-sections-are-standing-text-mode-state-rides-the-runtime-context/related:
+  en: bb663fd933828f8f
+  zh: 3ef5052aaf92958e

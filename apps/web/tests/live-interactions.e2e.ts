@@ -474,7 +474,12 @@ describe('web e2e: live-turn interactions (cancel / error / retry)', () => {
     await resume.click()
     await continued
     expect(turnEndReasons(sessionEvents)).toEqual(['error', 'completed'])
-    expect(sessionEvents.some(event => event.type === 'user/message' && event.data.source.kind === 'plan-mode')).toBe(true)
+    // Both between-turn mode switches landed; the state itself reaches the
+    // model on the runtime-context tail, so no user notice is recorded.
+    expect(sessionEvents
+      .filter(event => event.type === 'plan/mode')
+      .map(event => (event as SessionEvent & { data: { active: boolean } }).data.active))
+      .toEqual([true, false])
     const userMessages = sessionEvents.flatMap(event => event.type === 'user/message' && event.data.source.kind === 'user'
       ? [event.data] : [])
     expect(userMessages.map(message => message.content)).toEqual([[{ type: 'text', text: PROMPT }]])

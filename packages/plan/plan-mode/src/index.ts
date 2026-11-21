@@ -1,7 +1,8 @@
 /**
- * Plan mode is logged per-agent collaboration state: while active, a
- * deployment-owned guidance section is included in each model request, and
- * `exit_plan_mode` presents the completed plan for user review, while the
+ * Plan mode is logged per-agent collaboration state: once a session has
+ * entered plan mode, a deployment-owned guidance section stays in its system
+ * prompt, and `plan:mode` runtime context reports whether the guidance applies
+ * now. `exit_plan_mode` presents the completed plan for user review, while the
  * `/plan off` command lets a user leave directly. Sandbox mode and approval
  * policy enforce restrictions independently and do not read or write plan
  * state.
@@ -14,8 +15,10 @@
  *
  * The exit tool is disclosed progressively: it is admitted from the first step
  * whose selected state is active and stays admitted for the rest of the
- * Session, so leaving plan mode changes only the guidance section. Native
- * declarations, PTC bindings, and execution share that admission.
+ * Session, and the guidance section is included from that same step. Both stay
+ * for the rest of the Session, so entering and leaving plan mode afterwards
+ * changes only the runtime-context state and never the cached request prefix.
+ * Native declarations, PTC bindings, and execution share that admission.
  *
  * See packages/plan/plan-mode/README.md.
  *
@@ -29,7 +32,7 @@ import type { ZodType } from 'zod'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { ContextFormed } from '@deepseek-ai/dsh-llm'
-import type { Session, UserMessage } from '@deepseek-ai/dsh-session'
+import type { Session } from '@deepseek-ai/dsh-session'
 import { defineTool, ToolArgsError, ToolContextUnavailableError } from '@deepseek-ai/dsh-tools'
 import { UserQuestionError, type AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions'
 import type { CommandDefinitionId, CommandId } from '@deepseek-ai/dsh-commands'
@@ -39,6 +42,11 @@ import type { PlanProjection, PlanUnitState } from './types.ts'
 import { PlanModeError } from './error.ts'
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
+    /**
+     * Historical plan-mode switch notice. A Session recorded before the
+     * `plan:mode` runtime context reported the state still carries these
+     * messages, so the source stays decodable; nothing produces it now.
+     */
     'plan-mode': { kind: 'plan-mode' } & ContextFormed
   }
 }
@@ -67,9 +75,27 @@ export const EXIT_PLAN_MODE = 'exit_plan_mode'
 
 /** Deployment-owned plan guidance. */
 export interface PlanModeConfig {
-  /** Guidance rendered as the `plan:policy` prompt section while plan mode is active. */
+  /**
+   * Guidance rendered as the `plan:policy` prompt section from the first step
+   * plan mode is selected, and for the rest of the Session; the `plan:mode`
+   * runtime context reports whether it applies to the current step.
+   */
   section: string
 }
+
+/**
+ * Stable framing of the deployment guidance. The section outlives the mode so
+ * the request prefix stays cache-stable, so the text itself must say when it
+ * applies instead of appearing only while it does.
+ */
+const PLAN_GUIDANCE_PREAMBLE
+  = 'Plan mode guidance. Apply it only while the current session information reports plan mode as active.'
+
+/** Runtime-context state of an active plan mode. */
+const PLAN_MODE_ACTIVE = 'Plan mode is active.'
+
+/** Runtime-context state of an inactive plan mode. */
+const PLAN_MODE_INACTIVE = 'Plan mode is inactive.'
 
 /** The review question's id, echoed in the answer this tool reads. */
 const REVIEW_ID = 'plan-review'
@@ -165,8 +191,9 @@ export const planProjectionDefinition = {
 } satisfies ProjectionDefinition<'plan', PlanUnitState>
 
 /**
- * `ctx.planMode`: owns logged plan state, applies and narrates selected state at step start,
- * the `plan:policy` section, the `/plan` command, and the conditional exit tool.
+ * `ctx.planMode`: owns logged plan state and applies a selected state at step start,
+ * the `plan:policy` section and `plan:mode` runtime context, the `/plan`
+ * command, and the conditional exit tool.
  * Client carriers expose the projection's cropped `{ active, pending }` view.
  * Agent prompt assembly fails while the projection reader is not ready;
  * callers must await plugin activation before running an agent.
@@ -198,26 +225,17 @@ export class PlanModeController extends Service {
       order: ctx.systemPrompt.getSectionOrder('PLAN_POLICY'),
       text: (context) => {
         if (context.agent === undefined) return ''
-        const pending = this.pendingIntents.get(context.agent.session)
-        const state = this.planState(context.agent.session)
-        return state.entered || pending?.active === true
-          ? `The following instructions apply only while plan mode is active.\n\n${this.section}`
-          : ''
+        return this.guidanceIncluded(context.agent.session) ? `${PLAN_GUIDANCE_PREAMBLE}\n\n${this.section}` : ''
       },
     })
-    ctx.systemPrompt.section({
-      name: 'plan:status',
-      retirement: 'Plan mode is inactive.',
-      order: ctx.systemPrompt.getSectionOrder('PLAN_POLICY') + 1,
-      replacement: '',
+    ctx.systemPrompt.context({
+      name: 'plan:mode',
+      order: ctx.systemPrompt.getContextOrder('PLAN_MODE'),
+      required: true,
       text: (context) => {
-        if (context.agent === undefined) return ''
-        const state = this.planState(context.agent.session)
-        const active = this.pendingIntents.get(context.agent.session)?.active ?? state.active
-        if (!state.entered && !active) return ''
-        return active
-          ? 'Plan mode is active. Follow the plan-mode instructions.'
-          : 'Plan mode is inactive. The plan-mode instructions no longer apply.'
+        const agent = context.agent
+        if (agent === undefined) return ''
+        return this.selectedActive(agent.session) ? PLAN_MODE_ACTIVE : PLAN_MODE_INACTIVE
       },
     })
     this.planProjectionHandle = await ctx.sessionProjections.register(planProjectionDefinition)
@@ -237,7 +255,6 @@ export class PlanModeController extends Service {
         narration = this.onBoundary(agent.session)
       } catch (error) {
         ctx.logger.warn('dsh-plan-mode: failed to append selected plan mode at step start: %o', error)
-        return decision
       }
       return narration === undefined
         ? decision
@@ -380,9 +397,9 @@ export class PlanModeController extends Service {
             ? 'The user chose to keep planning; revise the plan and present it again.'
             : `The user chose to keep planning; their feedback: ${feedback}`, 'PLAN_REVISION_REQUESTED')
         }
-        // Keep plan guidance for the rest of this assistant tool batch. The
-        // silent selection is appended at the next accepted in-turn pre-step,
-        // before its request assembly.
+        // Keep the current state for the rest of this assistant tool batch. The
+        // exit is appended at the next accepted in-turn pre-step, before its
+        // request assembly.
         this.pendingIntents.set(agent.session, { active: false, narrate: false })
         return { approved: true }
       },
@@ -397,7 +414,7 @@ export class PlanModeController extends Service {
         title: 'Plan review',
         content: result.content,
       }),
-    }), { when: ({ agent }) => this.selectedActive(agent.session) || this.planState(agent.session).entered })
+    }), { when: ({ agent }) => this.guidanceIncluded(agent.session) })
   }
 
   private loggedActive(session: Session): boolean {
@@ -407,6 +424,17 @@ export class PlanModeController extends Service {
   /** The state a proposed step presents: a pending selection, else the logged state. */
   private selectedActive(session: Session): boolean {
     return this.pendingIntents.get(session)?.active ?? this.loggedActive(session)
+  }
+
+  /**
+   * Whether this Session carries the plan-mode material at all: the guidance
+   * section and the exit tool, which appear together at the first step plan
+   * mode applies and stay for the rest of the Session. Leaving plan mode then
+   * changes only the `plan:mode` runtime context, so the cached request prefix
+   * survives every later transition.
+   */
+  private guidanceIncluded(session: Session): boolean {
+    return this.planState(session).entered || this.selectedActive(session)
   }
 
   private hasOpenTurn(session: Session): boolean {

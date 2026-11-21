@@ -364,7 +364,13 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         signature: 'isEnabled(caller: Agent): boolean',
         description: 'Read the Team selection shared by the caller\'s subagent tree.',
         parameters: [{ name: 'caller', description: 'exact live root or descendant.' }],
-        returns: 'whether Team tools and guidance are enabled.',
+        returns: 'whether Team tools apply to the current step. The guidance section is reported separately by {@link mode}, because it outlives the selection.',
+      },
+      {
+        signature: 'mode(caller: Agent): TeamMode',
+        description: 'Read the Team mode shared by the caller\'s subagent tree.',
+        parameters: [{ name: 'caller', description: 'exact live root or descendant.' }],
+        returns: 'the current selection, and whether this tree has ever enabled Team mode — which keeps the Team guidance section in the system prompt after the mode is switched off, so a mode change reaches the model through the runtime context instead of a rewritten request prefix.',
       },
       {
         signature: '@Remote async setEnabled(agent: Agent, enabled: boolean, signal?: AbortSignal): Promise<void>',
@@ -2858,8 +2864,8 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
   },
   {
     key: 'planMode',
-    summary: '`ctx.planMode`: owns logged plan state, applies and narrates selected state at step start, the `plan:policy` section, the `/plan` command, and the conditional exit tool.',
-    description: '`ctx.planMode`: owns logged plan state, applies and narrates selected state at step start, the `plan:policy` section, the `/plan` command, and the conditional exit tool. Client carriers expose the projection\'s cropped `{ active, pending }` view. Agent prompt assembly fails while the projection reader is not ready; callers must await plugin activation before running an agent.',
+    summary: '`ctx.planMode`: owns logged plan state and applies a selected state at step start, the `plan:policy` section and `plan:mode` runtime context, the `/plan` command, and the conditional exit tool.',
+    description: '`ctx.planMode`: owns logged plan state and applies a selected state at step start, the `plan:policy` section and `plan:mode` runtime context, the `/plan` command, and the conditional exit tool. Client carriers expose the projection\'s cropped `{ active, pending }` view. Agent prompt assembly fails while the projection reader is not ready; callers must await plugin activation before running an agent.',
     methods: [
       {
         signature: 'get(agent: Agent): { active: boolean; pending?: boolean }',
@@ -5909,6 +5915,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     summary: 'Prepare headers for one pi-ai inference call, excluding model discovery.',
     description: 'Prepare headers for one pi-ai inference call, excluding model discovery. Listeners run synchronously and must call next(); they may edit only the request-owned headers and must not retain them. Throws fail the call with REQUEST_HEADERS before inference I/O. Harness attribution wins afterward. Non-TypeError messages are user-visible and must exclude secrets. TypeError details and non-Error values are replaced with safe guidance.',
     parameters: [{ name: 'request', description: 'immutable routing metadata from the exact prepared call.' }, { name: 'headers', description: 'fresh profile headers, shared only within this dispatch.' }, { name: 'next', description: 'continue header preparation through the remaining listeners.' }],
+  },
+  {
+    name: 'llm-pi-ai/terminal-message',
+    mode: 'emit',
+    signature: '\'llm-pi-ai/terminal-message\'(detail: PiAiTerminalMessage): void',
+    summary: 'Observe the provider\'s terminal pi-ai message for one stream call, dispatched by `llm-pi-ai` after the provider\'s final event and before the terminal `usage` chunk leaves the adapter.',
+    description: 'Observe the provider\'s terminal pi-ai message for one stream call, dispatched by `llm-pi-ai` after the provider\'s final event and before the terminal `usage` chunk leaves the adapter. A completion calls it once with pi-ai\'s finished message; an in-stream failure calls it with the failed one.\n\nModel-hidden observation, never model input: a listener must not alter the message, must be synchronous, and must never throw on provider data, because a throw fails the model request it observes.',
+    parameters: [{ name: 'detail', description: 'the route that made the call and the native message it ended with.' }],
   },
   {
     name: 'llm/adapters-updated',
@@ -9007,6 +9021,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface PiAiRequestHeaderContext extends Readonly<Pick<GenerateOptions<string>, \'provider\' | \'model\' | \'sessionId\' | \'purpose\'>> {\n    readonly baseURL: string;\n}',
   },
   {
+    name: 'PiAiTerminalMessage',
+    declaration: 'export interface PiAiTerminalMessage {\n    readonly provider: string;\n    readonly model: string;\n    readonly message: AssistantMessage;\n}',
+  },
+  {
     name: 'PlatformSession',
     declaration: 'export interface PlatformSession {\n    readonly origin: string;\n    readonly token: string;\n    readonly userId: AccountUserId | null;\n    readonly embeddedPageDist?: string;\n    readonly requestHeaders?: Readonly<Record<string, string>>;\n}',
   },
@@ -10993,6 +11011,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'TableValueOf',
     declaration: 'export type TableValueOf<S extends DomainSpec, N extends keyof S[\'tables\']> = S[\'tables\'][N] extends DomainTableSpec<string, infer V> ? V : never;',
+  },
+  {
+    name: 'TeamMode',
+    declaration: 'export interface TeamMode {\n    readonly enabled: boolean;\n    readonly entered: boolean;\n}',
   },
   {
     name: 'TeamTaskAction',

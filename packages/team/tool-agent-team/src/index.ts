@@ -1,10 +1,16 @@
-/** Conditionally available task-board tools and guidance for Agent Teams. */
+/**
+ * Conditionally available task-board tools and Agent Teams guidance. The
+ * guidance section is included from the first step the caller's tree enables
+ * Team mode and stays for the rest of the Session; `team:mode` runtime context
+ * reports whether it applies now, so switching the mode never rewrites the
+ * cached request prefix.
+ */
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SubagentError } from '@deepseek-ai/dsh-subagent'
-import type { TeamTaskId, TeamTaskView } from '@deepseek-ai/dsh-agent-team'
+import type { TeamMode, TeamTaskId, TeamTaskView } from '@deepseek-ai/dsh-agent-team'
 import { defineTool, ToolArgsError, ToolContextUnavailableError } from '@deepseek-ai/dsh-tools'
 import type { InferValue, ValueSchemaSpec } from '@deepseek-ai/dsh-tools'
 import { brandString } from '@deepseek-ai/dsh-brand'
@@ -24,13 +30,28 @@ export const Config: z<Config> = z.object({})
 const REMOVED_CONFIG_KEYS = ['interrupt', 'freshProvider', 'forkProvider'] as const
 
 /** Model-facing collaboration guidance shared by Lead and teammates. */
-const TEAM_POLICY = `Agent Teams is available in this session.
-
-The Team Lead and all teammates share the same working directory and filesystem. Edits are immediately visible to every member. Split write work into disjoint scopes, record expected write scopes on shared tasks, and use task dependencies when work must be ordered. Write-scope overlap is advisory, not a lock.
+const TEAM_POLICY = `The Team Lead and all teammates share the same working directory and filesystem. Edits are immediately visible to every member. Split write work into disjoint scopes, record expected write scopes on shared tasks, and use task dependencies when work must be ordered. Write-scope overlap is advisory, not a lock.
 
 Use the names returned by subagent, subagent_fork, or list_agents as owner when assigning or filtering shared tasks. The root can reassign tasks to itself or any continuable descendant; other agents claim ready tasks themselves. Shared-task workflow is list, get, claim with the current revision, perform the work, then complete. Task readiness never starts an owner. The root agent must wait for required teammates before giving the final answer.
 
 Task changes do not end wait_agent calls, add inbox messages, or start idle agents. Use send_message when another agent needs to act on a task.`
+
+/**
+ * Stable framing of {@link TEAM_POLICY}. The section outlives the mode so the
+ * request prefix stays cache-stable, so the text itself must say when it
+ * applies instead of appearing only while it does.
+ */
+const TEAM_GUIDANCE_PREAMBLE
+  = 'Agent Teams guidance. Apply it only while the current session information reports Agent Teams as enabled.'
+
+/** Runtime-context state of an enabled Team mode. */
+const TEAM_MODE_ENABLED = 'Agent Teams is enabled.'
+
+/** Runtime-context state of a disabled Team mode. */
+const TEAM_MODE_DISABLED = 'Agent Teams is disabled.'
+
+/** Team mode reported when no live root supplies the selection. */
+const DISABLED_MODE: TeamMode = { enabled: false, entered: false }
 
 /** One shared task, matching the public `TeamTaskView`. */
 const TASK_VIEW_SCHEMA = {
@@ -99,21 +120,30 @@ export function apply(ctx: Context, config: Config = {}): void {
   }
   const withOwnerName = ({ ownerId, ownerName, ...task }: TeamTaskView): NamedTaskView =>
     ownerId === undefined ? task : { ...task, owner: ownerName ?? ownerId }
-  const enabled = (agent: Agent | undefined): boolean => {
-    if (agent === undefined) return false
+  const readMode = (agent: Agent | undefined): TeamMode => {
+    if (agent === undefined) return DISABLED_MODE
     try {
-      return ctx.agentTeams.isEnabled(agent)
+      return ctx.agentTeams.mode(agent)
     } catch (error: unknown) {
       if (!(error instanceof SubagentError) || error.code !== 'UNAUTHORIZED') throw error
       // An independently resumed child has no active root to supply Team mode.
-      return false
+      return DISABLED_MODE
     }
   }
+  const enabled = (agent: Agent | undefined): boolean => readMode(agent).enabled
   ctx.systemPrompt.section({
     name: 'team:policy',
     retirement: 'The shared task board is no longer available. Its instructions no longer apply.',
     order: ctx.systemPrompt.getSectionOrder('TEAM_POLICY'),
-    text: ({ agent }) => enabled(agent) ? TEAM_POLICY : '',
+    text: ({ agent }) => readMode(agent).entered ? `${TEAM_GUIDANCE_PREAMBLE}\n\n${TEAM_POLICY}` : '',
+  })
+  ctx.systemPrompt.context({
+    name: 'team:mode',
+    order: ctx.systemPrompt.getContextOrder('TEAM_MODE'),
+    required: true,
+    // No agent means no Session: an agent-less assembly reports no mode, the
+    // same rule the plan-mode state follows.
+    text: ({ agent }) => agent === undefined ? '' : enabled(agent) ? TEAM_MODE_ENABLED : TEAM_MODE_DISABLED,
   })
   ctx.tools.register(defineTool({
     name: 'team_task_create',

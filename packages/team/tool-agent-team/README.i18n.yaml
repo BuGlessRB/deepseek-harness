@@ -36,14 +36,14 @@
   en: c66b02cbc0636122
   zh: a000a4c8c30427f1
 /deepseek-ai-dsh-tool-agent-team/understand-the-implementation/source-map:
-  en: 3b906bae9ec19393
-  zh: 42c8dd145c704cb3
+  en: b6895217a02afa98
+  zh: 1038dbcb529a3155
 /deepseek-ai-dsh-tool-agent-team/understand-the-implementation/policy-and-tools:
-  en: c251c8ea9e0eb835
-  zh: fe99017a1714ac16
+  en: fe3761bca46dc85c
+  zh: afa1f883669a9c62
 /deepseek-ai-dsh-tool-agent-team/understand-the-implementation/scoped-registration-and-teardown:
-  en: e1a861efd2341409
-  zh: 4023f653d36c70b1
+  en: 6c14bfa4c7b1fd79
+  zh: d06cd3c4422ffee5
 /deepseek-ai-dsh-tool-agent-team/further-exploration:
   en: bcd5d6faf995a0fb
   zh: edf20792aa9eadcb
@@ -54,17 +54,29 @@
   en: 8757dc3caca9e4e2
   zh: fd0b7535a1b24189
 /deepseek-ai-dsh-tool-agent-team/model-experience/team-policy-system-prompt/what-the-model-sees:
-  en: 25079a70c9a3ed87
-  zh: 34301e390669a887
+  en: 63de48e434ba4765
+  zh: 46ffedcfc8a1261d
 /deepseek-ai-dsh-tool-agent-team/model-experience/team-policy-system-prompt/what-the-model-sees/team-policy:
   en: 824ebdbe434d7b6c
   zh: 6a442dbca7cf3625
 /deepseek-ai-dsh-tool-agent-team/model-experience/team-policy-system-prompt/token-effect:
-  en: 7e2583f482a60938
-  zh: d3e68b204cd3d2b3
+  en: a3390f0a8795c77b
+  zh: a1c2fdd46dc77ea6
 /deepseek-ai-dsh-tool-agent-team/model-experience/team-policy-system-prompt/kv-cache-effect:
-  en: 6723f8e3f2497338
-  zh: ca68851b279362e1
+  en: 4675a2d03640f7f8
+  zh: 3dc12aded109396a
+/deepseek-ai-dsh-tool-agent-team/model-experience/team-mode-runtime-context:
+  en: 7b7ea195d6d4a9b3
+  zh: 76a2f7aa62f3bf1e
+/deepseek-ai-dsh-tool-agent-team/model-experience/team-mode-runtime-context/what-the-model-sees:
+  en: 99bce582f409157a
+  zh: d95fd70e10ff9176
+/deepseek-ai-dsh-tool-agent-team/model-experience/team-mode-runtime-context/token-effect:
+  en: 0e1ade9100f76770
+  zh: eae14206c08c4c55
+/deepseek-ai-dsh-tool-agent-team/model-experience/team-mode-runtime-context/kv-cache-effect:
+  en: f557e6139acb5322
+  zh: 98866e9ed24763c6
 /deepseek-ai-dsh-tool-agent-team/model-experience/task-tool-schemas:
   en: d6918434714cf05a
   zh: eef799d16e0c8f4b

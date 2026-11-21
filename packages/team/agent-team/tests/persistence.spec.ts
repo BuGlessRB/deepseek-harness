@@ -219,7 +219,7 @@ for (const backend of backends) {
       expect(history.find(event => event.type === 'team/message/queued')).toMatchObject({ data: { message } })
       const checkpoint = second.ctx.sessionProjections.checkpoint(rootHandle.agent.session)
       const state = teamProjectionDefinition.stateSchema.parse(checkpoint['agentTeam']!.val)
-      expect(Object.keys(state).sort()).toEqual(['enabled', 'id', 'inheritedEventCount', 'nextTaskNumber', 'tasks'])
+      expect(Object.keys(state).sort()).toEqual(['enabled', 'entered', 'id', 'inheritedEventCount', 'nextTaskNumber', 'tasks'])
       await expect(second.ctx.agentTeams.updateTask(rootHandle.agent, {
         taskId: task.id, expectedRevision: 1, action: 'claim',
       })).resolves.toMatchObject({ revision: 2, status: 'in_progress' })

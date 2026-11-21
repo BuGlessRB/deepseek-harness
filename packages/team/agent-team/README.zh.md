@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-新 Session（包括普通分叉）默认关闭 Team 模式。参见[会话模式升级指南](../../../docs/upgrade-guide/v0.2.1-rc.2/session-team-mode/guide.zh.md)。在根 Session 的模型与推理等级菜单中打开**使用智能体团队**。关闭开关后，整棵树的后续步骤不再显示 Team 工具和提示词，同时保留任务与子代理。选择重启后仍有效；没有保存选择的历史任务板保持开启。
+新 Session（包括普通分叉）默认关闭 Team 模式。参见[会话模式升级指南](../../../docs/upgrade-guide/v0.2.1-rc.2/session-team-mode/guide.zh.md)。在根 Session 的模型与推理等级菜单中打开**使用智能体团队**。关闭开关后，整棵树的后续步骤不再显示 Team 工具，但仍保留任务、子代理以及已进入 system prompt 的引导段落；`team:mode` runtime context 报告当前状态。选择重启后仍有效；没有保存选择的历史任务板保持开启。
 
 设置 `defaultEnabled: true` 可在首次模型步骤之前启用新根 Session，包括普通分叉。初始化将选择保存为 `team/mode`；保存失败会拒绝 Agent 创建。已有选择优先，恢复 Session 时始终不应用默认值，包括从未保存选择的会话。后代使用其存活根节点的模式。[SDK 配置指南](../../../docs/user/guide/python-sdk.zh.md#enable-team-mode)提供可直接使用的 patch；标准 bundle 保持此选项关闭。
 
@@ -139,7 +139,7 @@ Team 在激活前要求 `sessionPersistence` 可用。`Service.init` 等待 `age
 
 任务修改在向当前在线根 Session 追加 `team/task` 前响应取消，随后等待刷盘完成。取消不能撤回已追加的记录。刷盘失败或没有监听器参与时，以 `TEAM_TASK_PERSISTENCE_UNCONFIRMED` 报告任务 id 和修订号：任务已可见，但持久性未知。重试前先读取该任务。任务记录仅保留在日志中。不重写已提交任务或历史载荷代次。
 
-投影忽略历史名册与邮箱记录，不校验或保留其载荷。投影仅保存任务板、模式选择和恢复元数据。缺少 `ownerName` 的第 7 版检查点仍可复用；后缀回放从后续任务事件记录名称，不回填历史任务。不兼容的投影检查点从未改写的 Session 日志重建；参见[升级指南](../../../docs/upgrade-guide/v0.2.1-rc.3/team-projection/guide.zh.md)。
+投影忽略历史名册与邮箱记录，不校验或保留其载荷。投影仅保存任务板、模式选择、该树是否曾启用 Team 模式，以及恢复元数据。由更早状态版本写入的检查点无法提供新增的 `entered` 事实，因此会被丢弃，该 key 从未改写的 Session 日志重新折叠；参见[升级指南](../../../docs/upgrade-guide/v0.2.1-rc.3/team-projection/guide.zh.md)。
 
 ### Dispose
 

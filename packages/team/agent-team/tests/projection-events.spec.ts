@@ -297,7 +297,7 @@ describe('Agent Teams projection events', () => {
       }
     }
     expect(Object.keys(teamProjectionDefinition.stateSchema.parse(state)).sort()).toEqual([
-      'enabled', 'id', 'inheritedEventCount', 'nextTaskNumber', 'tasks',
+      'enabled', 'entered', 'id', 'inheritedEventCount', 'nextTaskNumber', 'tasks',
     ])
   })
 
@@ -330,14 +330,14 @@ describe('Agent Teams projection events', () => {
     expect(suffix).toEqual(full)
     const state = teamProjectionDefinition.stateSchema.parse(full.checkpoint['agentTeam']!.val)
     expect(state).toEqual({
-      id: TEAM, inheritedEventCount: 0, enabled: false, nextTaskNumber: 2,
+      id: TEAM, inheritedEventCount: 0, enabled: false, entered: true, nextTaskNumber: 2,
       tasks: [task({ revision: 2, status: 'completed', ownerId: CHILD, ownerName: 'reviewer/checker' })],
     })
-    expect(full.checkpoint['agentTeam']!.ver).toBe(7)
+    expect(full.checkpoint['agentTeam']!.ver).toBe(8)
     expect(teamProjectionView(state)).toMatchObject({ enabled: false, tasks: [{ status: 'completed' }] })
   })
 
-  it('reuses version-7 checkpoints without owner names and applies named task suffixes', async () => {
+  it('reuses current checkpoints without owner names and refolds a superseded one', async () => {
     const ctx = new Context()
     onTestFinished(() => ctx.fiber.dispose())
     await ctx.plugin(SessionProjectionRegistry)
@@ -352,8 +352,8 @@ describe('Agent Teams projection events', () => {
         task: task({ revision: 2, status: 'completed', ownerId: CHILD, ownerName: 'reviewer/checker' }),
       }, SessionSeq(2)),
     ]
-    const checkpoint = { agentTeam: { ver: 7, seq: SessionSeq(1), val: {
-      id: TEAM, inheritedEventCount: 0, enabled: true, nextTaskNumber: 2, tasks: [historicalTask],
+    const checkpoint = { agentTeam: { ver: 8, seq: SessionSeq(1), val: {
+      id: TEAM, inheritedEventCount: 0, enabled: true, entered: true, nextTaskNumber: 2, tasks: [historicalTask],
     } } }
     expect(ctx.sessionProjections.restoreFloor(checkpoint)).toBe(1)
     const cached = ctx.sessionProjections.viewCheckpoint(checkpoint)
@@ -362,7 +362,14 @@ describe('Agent Teams projection events', () => {
     const restored = ctx.sessionProjections.restore(checkpoint, records.slice(1), SessionLogOffset(1), header, SessionLogOffset(0))
     const full = ctx.sessionProjections.restore({}, records, SessionLogOffset(0), header, SessionLogOffset(0))
     expect(restored).toEqual(full)
-    expect(restored.checkpoint['agentTeam']!.ver).toBe(7)
+    expect(restored.checkpoint['agentTeam']!.ver).toBe(8)
+    // A version-7 row cannot supply the `entered` fold fact, so it is
+    // discarded and the key refolds from the whole log.
+    const superseded = { agentTeam: { ...checkpoint.agentTeam, ver: 7 } }
+    expect(ctx.sessionProjections.restoreFloor(superseded)).toBe(0)
+    expect(ctx.sessionProjections.viewCheckpoint(superseded)).not.toHaveProperty('agentTeam')
+    expect(ctx.sessionProjections.restore(superseded, records, SessionLogOffset(0), header, SessionLogOffset(0)))
+      .toEqual(full)
     expect(restored.snapshot.values.agentTeam).toMatchObject({ tasks: [{ ownerName: 'reviewer/checker' }] })
     const invalid = { agentTeam: { ...checkpoint.agentTeam, val: {
       ...checkpoint.agentTeam.val, tasks: [task({ ownerName: 'reviewer' })],

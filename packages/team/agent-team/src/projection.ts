@@ -78,6 +78,13 @@ export function emptyTeamState(rootId: SessionId, inheritedEventCount = 0): Team
 /** Checkpoint-safe state for the Team owned by the projected Session. */
 export interface TeamProjectionState extends TeamState {
   readonly inheritedEventCount: number
+  /**
+   * Whether Team mode has been enabled in this tree at any point; absent when
+   * it never has. The Team guidance section is included from then on, so later
+   * mode changes reach the model through the `team:mode` runtime context
+   * instead of rewriting the cached request prefix.
+   */
+  readonly entered?: boolean
   readonly failure?: string
 }
 
@@ -86,6 +93,7 @@ const teamModeSchema = z.object({ enabled: z.boolean() }).strict()
 const teamProjectionEntrySchema = z.object({
   inheritedEventCount: nonNegativeSafeInteger,
   enabled: z.boolean().optional(),
+  entered: z.boolean().optional(),
   id: teamIdSchema,
   tasks: z.array(teamTaskSnapshotSchema),
   nextTaskNumber: positiveSafeInteger,
@@ -105,7 +113,8 @@ function applyProjectionEvent(state: TeamProjectionState, event: SessionEvent): 
   try {
     if (event.type === 'team/mode') {
       if (event.seq < state.inheritedEventCount) return state
-      return { ...state, ...parsePersisted(event.type, teamModeSchema, event.data) }
+      const mode = parsePersisted(event.type, teamModeSchema, event.data)
+      return { ...state, ...mode, ...mode.enabled ? { entered: true } : {} }
     }
     if (state.failure !== undefined || event.type !== 'team/task') return state
     const selector = parsePersisted(event.type, teamEventSelectorSchema, event.data)
@@ -146,7 +155,13 @@ function applyTask(state: TeamProjectionState, task: TeamTaskSnapshot): TeamProj
       number === Number.MAX_SAFE_INTEGER ? number : number + 1,
     )
   }
-  return { ...state, enabled: state.enabled ?? true, tasks: replaceAt(state.tasks, index, task), nextTaskNumber }
+  return {
+    ...state,
+    enabled: state.enabled ?? true,
+    entered: state.entered ?? true,
+    tasks: replaceAt(state.tasks, index, task),
+    nextTaskNumber,
+  }
 }
 
 const teamTaskViewSchema = z.object({
@@ -202,11 +217,13 @@ export function teamProjectionView(state: TeamProjectionState): TeamProjection {
  * Team projection selected by the projected Session identity; the wire view
  * carries the selection and task board. Current subagents are
  * supplied separately by the existing `subagentCatalog` projection.
- * Version-7 checkpoints without owner names remain usable without backfilling.
+ * State version 8 adds the `entered` fold fact, so a version-7 checkpoint row
+ * refolds from the log instead of serving a tree that already enabled Team
+ * mode as one that never did.
  */
 export const teamProjectionDefinition = {
   key: 'agentTeam',
-  stateVersion: 7,
+  stateVersion: 8,
   stateSchema: teamProjectionEntrySchema,
   init: (header, inheritedEventCount: SessionLogOffset) => emptyTeamState(header.id, inheritedEventCount),
   apply: applyProjectionEvent,

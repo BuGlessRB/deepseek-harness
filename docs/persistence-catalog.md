@@ -750,7 +750,7 @@ Source: [`packages/interaction/permission-presets/src/index.ts:61`](../packages/
 'plan/mode': { active: boolean }
 ```
 
-Source: [`packages/plan/plan-mode/src/index.ts:55`](../packages/plan/plan-mode/src/index.ts)
+Source: [`packages/plan/plan-mode/src/index.ts:63`](../packages/plan/plan-mode/src/index.ts)
 
 ### `request/*`
 
@@ -1026,7 +1026,7 @@ Source: [`packages/core/session/src/types.ts:345`](../packages/core/session/src/
 
 Types: [TeamId](subsystems/agent-team.md) · [TeamMemberSnapshot](subsystems/agent-team.md)
 
-Source: [`packages/team/agent-team/src/types.ts:179`](../packages/team/agent-team/src/types.ts)
+Source: [`packages/team/agent-team/src/types.ts:191`](../packages/team/agent-team/src/types.ts)
 
 <a id="teammessagedelivered--log-only"></a>
 
@@ -1044,7 +1044,7 @@ Source: [`packages/team/agent-team/src/types.ts:179`](../packages/team/agent-tea
 
 Types: [TeamId](subsystems/agent-team.md) · [TeamMessageId](subsystems/agent-team.md)
 
-Source: [`packages/team/agent-team/src/types.ts:185`](../packages/team/agent-team/src/types.ts)
+Source: [`packages/team/agent-team/src/types.ts:197`](../packages/team/agent-team/src/types.ts)
 
 <a id="teammessagequeued--log-only"></a>
 
@@ -1057,7 +1057,7 @@ Source: [`packages/team/agent-team/src/types.ts:185`](../packages/team/agent-tea
 
 Types: [TeamId](subsystems/agent-team.md) · [TeamMessageSnapshot](subsystems/agent-team.md)
 
-Source: [`packages/team/agent-team/src/types.ts:183`](../packages/team/agent-team/src/types.ts)
+Source: [`packages/team/agent-team/src/types.ts:195`](../packages/team/agent-team/src/types.ts)
 
 <a id="teammode--log-only"></a>
 
@@ -1068,7 +1068,7 @@ Source: [`packages/team/agent-team/src/types.ts:183`](../packages/team/agent-tea
 'team/mode': { enabled: boolean }
 ```
 
-Source: [`packages/team/agent-team/src/types.ts:177`](../packages/team/agent-team/src/types.ts)
+Source: [`packages/team/agent-team/src/types.ts:189`](../packages/team/agent-team/src/types.ts)
 
 <a id="teamtask--log-only"></a>
 
@@ -1081,7 +1081,7 @@ Source: [`packages/team/agent-team/src/types.ts:177`](../packages/team/agent-tea
 
 Types: [TeamId](subsystems/agent-team.md) · [TeamTaskSnapshot](subsystems/agent-team.md)
 
-Source: [`packages/team/agent-team/src/types.ts:181`](../packages/team/agent-team/src/types.ts)
+Source: [`packages/team/agent-team/src/types.ts:193`](../packages/team/agent-team/src/types.ts)
 
 ### `todo/*`
 
@@ -5209,7 +5209,7 @@ Sources: [`packages/team/agent-team/src/types.ts:50`](../packages/team/agent-tea
 
 SHA-256: `2eafefdc6f79a4922d68a787a09eaf4dd2b2369c3777fba4c05e800b5678ac8e`
 
-Sources: [`packages/team/agent-team/src/types.ts:112`](../packages/team/agent-team/src/types.ts)
+Sources: [`packages/team/agent-team/src/types.ts:124`](../packages/team/agent-team/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -5229,7 +5229,7 @@ Sources: [`packages/team/agent-team/src/types.ts:112`](../packages/team/agent-te
 
 SHA-256: `2152caf1a71e588e4df2358a806dea24936c1c47131134f01a12939d12cdc0c0`
 
-Sources: [`packages/team/agent-team/src/types.ts:121`](../packages/team/agent-team/src/types.ts)
+Sources: [`packages/team/agent-team/src/types.ts:133`](../packages/team/agent-team/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -6029,7 +6029,7 @@ Array of `unknown` (opaque).
 
 SHA-256: `20a57544bbf204dacd1ae6beb2ab29444365c3c869f2afdf489dcdcbc3d9c8c5`
 
-Sources: [`packages/plan/plan-mode/src/index.ts:55`](../packages/plan/plan-mode/src/index.ts)
+Sources: [`packages/plan/plan-mode/src/index.ts:63`](../packages/plan/plan-mode/src/index.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -6533,7 +6533,7 @@ Sources: [`packages/experimental/liveshare/src/host/viewer-principal.ts:29`](../
 
 SHA-256: `c2a13242efc3bea4b36a843ddf1524ff4d33c765a71b582fa1fdbfa4fa148434`
 
-Sources: [`packages/team/agent-team/src/types.ts:177`](../packages/team/agent-team/src/types.ts)
+Sources: [`packages/team/agent-team/src/types.ts:189`](../packages/team/agent-team/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -8215,7 +8215,7 @@ Sources: [`packages/web/web-search-deepseek/src/provider.ts:62`](../packages/web
 
 SHA-256: `b1ebd5cda47d90d980bb05bffc3f970c51537b9aff15b3bc3d639811727741b1`
 
-Sources: [`packages/team/agent-team/src/types.ts:179`](../packages/team/agent-team/src/types.ts)
+Sources: [`packages/team/agent-team/src/types.ts:191`](../packages/team/agent-team/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -8243,7 +8243,7 @@ Sources: [`packages/core/session/src/types.ts:345`](../packages/core/session/src
 
 SHA-256: `ea08ec1df0c33108fd03345b9af199cf04dea450aa045d3c683f216311403403`
 
-Sources: [`packages/team/agent-team/src/types.ts:183`](../packages/team/agent-team/src/types.ts)
+Sources: [`packages/team/agent-team/src/types.ts:195`](../packages/team/agent-team/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -8257,7 +8257,7 @@ Sources: [`packages/team/agent-team/src/types.ts:183`](../packages/team/agent-te
 
 SHA-256: `0bcfaf5566d271028429ac7b562cb59053c9d78b8ae14708c35fac835108d1b1`
 
-Sources: [`packages/team/agent-team/src/types.ts:185`](../packages/team/agent-team/src/types.ts)
+Sources: [`packages/team/agent-team/src/types.ts:197`](../packages/team/agent-team/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -8415,7 +8415,7 @@ Sources: [`packages/compaction/compaction-image-offload/src/projection.ts:25`](.
 
 SHA-256: `a9427866376b691aace0ce25aa0e1bdec2a14156a05152947a467da3f7967cb9`
 
-Sources: [`packages/team/agent-team/src/types.ts:181`](../packages/team/agent-team/src/types.ts)
+Sources: [`packages/team/agent-team/src/types.ts:193`](../packages/team/agent-team/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|

@@ -112,9 +112,25 @@ interface TeamProjection {
 }
 ```
 
+`ctx.agentTeams.mode()` 同时报告已保存的选择与该树是否曾启用过 Team 模式；后者让策略段落在模式关闭后仍保留在 system prompt 中：
+
+```ts type-equiv
+/** Team mode shared by one subagent tree, as {@link TeamService.mode} reports it. */
+interface TeamMode {
+  /** Whether Team tools and guidance apply to the current step. */
+  readonly enabled: boolean
+  /**
+   * Whether this tree has ever enabled Team mode. The Team guidance section is
+   * included from then on, so a mode change reaches the model through the
+   * runtime context instead of a rewritten request prefix.
+   */
+  readonly entered: boolean
+}
+```
+
 ## 回放
 
-`agentTeam` 投影按 `TeamId` 重放任务记录，并重放 Session 自身的模式选择。subagent 发现负责当前树成员关系，不将继承目录作为权限来源。Session 事件的 `seq` 和 `time` 负责排序和时间。已提交的持久化代次保持不变。[包 README](../../packages/team/agent-team/README.zh.md)定义任务操作和限制。
+`agentTeam` 投影按 `TeamId` 重放任务记录，并重放 Session 自身的模式选择；它还折叠该树是否曾启用 Team 模式，因此之后的切换通过 `team:mode` [runtime context](system-prompt.zh.md) 到达模型，而不是重写提示词。subagent 发现负责当前树成员关系，不将继承目录作为权限来源。Session 事件的 `seq` 和 `time` 负责排序和时间。已提交的持久化代次保持不变。[包 README](../../packages/team/agent-team/README.zh.md)定义任务操作和限制。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -134,9 +150,20 @@ Agent Teams service backed by the exact live Lead Session log.
 /**
  * Read the Team selection shared by the caller's subagent tree.
  * @param caller - exact live root or descendant.
- * @returns whether Team tools and guidance are enabled.
+ * @returns whether Team tools apply to the current step. The guidance section
+ * is reported separately by {@link mode}, because it outlives the selection.
  */
 isEnabled(caller: Agent): boolean
+
+/**
+ * Read the Team mode shared by the caller's subagent tree.
+ * @param caller - exact live root or descendant.
+ * @returns the current selection, and whether this tree has ever enabled Team
+ * mode — which keeps the Team guidance section in the system prompt after
+ * the mode is switched off, so a mode change reaches the model through the
+ * runtime context instead of a rewritten request prefix.
+ */
+mode(caller: Agent): TeamMode
 
 /**
  * Save a root Session's Team selection without stopping children or deleting tasks.

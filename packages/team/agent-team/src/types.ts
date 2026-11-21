@@ -108,6 +108,18 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
   }
 }
 
+/** Team mode shared by one subagent tree, as {@link TeamService.mode} reports it. */
+export interface TeamMode {
+  /** Whether Team tools and guidance apply to the current step. */
+  readonly enabled: boolean
+  /**
+   * Whether this tree has ever enabled Team mode. The Team guidance section is
+   * included from then on, so a mode change reaches the model through the
+   * runtime context instead of a rewritten request prefix.
+   */
+  readonly entered: boolean
+}
+
 /** One peer message recorded by the historical Team mailbox. */
 export interface TeamMessageSnapshot {
   readonly id: TeamMessageId

@@ -87,15 +87,15 @@ The [subagent teammates Agent Note](../../../.agents/notes/implemented/architect
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry, removed-key rejection, Team policy and four conditional task tools |
+| [`src/index.ts`](src/index.ts) | Plugin entry, removed-key rejection, Team policy section and `team:mode` context, four conditional task tools |
 
 ### Policy and tools
 
-One plugin registration provides a dynamic `team:policy` section and four conditional task tools. Each provider reads the caller’s root Session selection, including fork children. An unavailable root disables Team tools and guidance. Tree authority comes from `ctx.subagents.rootOf(agent)`; task owners remain Session ids in `ctx.agentTeams`. Owner arguments resolve through `ctx.subagents.resolveName()`, which grants no authority. Results replace the saved `ownerId` and `ownerName` fields with `owner: ownerName ?? ownerId`. Displaying a task or editing its content requires no descendant catalog reads. Identity, discovery, communication, and waiting belong to [subagent controls](../../subagent/tool-subagent-control/README.md) and keep that ownership when Team mode switches; enabling Team mode removes only their result report instruction. The subagent runtime delivers final results.
+One plugin registration provides the `team:policy` section, the `team:mode` runtime context, and four conditional task tools. Each provider reads the caller’s root Session selection, including fork children. An unavailable root reports an unavailable Team mode, so neither the tools nor the guidance applies. Tree authority comes from `ctx.subagents.rootOf(agent)`; task owners remain Session ids in `ctx.agentTeams`. Owner arguments resolve through `ctx.subagents.resolveName()`, which grants no authority. Results replace the saved `ownerId` and `ownerName` fields with `owner: ownerName ?? ownerId`. Displaying a task or editing its content requires no descendant catalog reads. Identity, discovery, communication, and waiting belong to [subagent controls](../../subagent/tool-subagent-control/README.md) and remain unchanged when Team mode switches. The subagent runtime delivers final results.
 
 ### Scoped registration and teardown
 
-Tool `when` conditions resolve at step preparation, including the first step of new, forked, and resumed Agents. Policy text is evaluated during prompt assembly. After the policy has been admitted, disabling Team mode appends a notice withdrawing it; unloading this plugin appends its retirement notice on the next accepted assembly. An already prepared step retains its tool selection, but task operations check the current mode before starting. Plugin disposal removes all registrations through their owning effects.
+Tool `when` conditions resolve at step preparation, including the first step of new, forked, and resumed Agents. The section and runtime context are evaluated during prompt assembly. An already prepared step retains its tool selection, but task operations check the current mode before starting. Plugin disposal removes all registrations through their owning effects.
 
 </details>
 
@@ -121,12 +121,12 @@ Read these pages when the package-level contract is not enough. They move from t
 
 #### What the model sees
 
-Every Team member's system prompt carries one `team:policy` section; the Lead and every teammate see the same text:
+From the first step Team mode is enabled in the caller's tree, every Team member's system prompt carries one `team:policy` section under a fixed sentence saying that the guidance applies only while the session information reports Agent Teams as enabled. The Lead and every teammate see the same text:
 
 ##### Team policy
 
 ```markdown
-Agent Teams is available in this session.
+Agent Teams guidance. Apply it only while the current session information reports Agent Teams as enabled.
 
 The Team Lead and all teammates share the same working directory and filesystem. Edits are immediately visible to every member. Split write work into disjoint scopes, record expected write scopes on shared tasks, and use task dependencies when work must be ordered. Write-scope overlap is advisory, not a lock.
 
@@ -137,11 +137,25 @@ Task changes do not end wait_agent calls, add inbox messages, or start idle agen
 
 #### Token effect
 
-The section is a fixed cost on every request of every Team member.
+A tree that never enables Team mode pays nothing. The first enable adds the section to every later request of every member; the text is unchanged after that.
 
 #### KV Cache effect
 
-The text is identical for the Lead and every descendant and does not change while the plugin stays loaded, so it keeps a stable system-prompt prefix, including between a parent and its `subagent_fork` child. Loading or unloading the plugin changes the system prompt of every member and invalidates their cached prefixes.
+The text is identical for the Lead and every descendant and does not change while the plugin stays loaded, so it keeps a stable system-prompt prefix, including between a parent and its `subagent_fork` child. Switching Team mode off leaves it in place; only the `team:mode` runtime context changes. Loading or unloading the plugin changes the system prompt of every member and invalidates their cached prefixes.
+
+### Team mode runtime context
+
+#### What the model sees
+
+Every assembly carries one required `team:mode` runtime-context contribution after the plan-mode state: `Agent Teams is enabled.` or `Agent Teams is disabled.` The loop logs a fresh runtime-context snapshot after the retained history only when that state differs from the snapshot the model already has, so switching Team mode costs one small appended message.
+
+#### Token effect
+
+The state line is a few tokens in the runtime-context snapshot, which the loop already emits for the working directory, file policy, approval policy, and subagent identity.
+
+#### KV Cache effect
+
+A mode change appends one runtime-context snapshot at the end of the request instead of changing the system prompt or the tool list, so the cached prefix up to the previous step still hits. Enabling Team mode still adds the task tools, so the first enable costs the route's tool-update behavior once.
 
 ### Task tool schemas
 

@@ -76,11 +76,11 @@ kind: "package-reference"
 <a id="model-experience"></a>
 ## 模型体验
 
-间接地，通过 chip 派发的 `/plan off` 命令行：`dsh-plan-mode` 拥有该命令行驱动的模型可见 policy 段、退出工具 schema 与已记录状态。
+间接地，通过 chip 派发的 `/plan off` 命令行：`dsh-plan-mode` 拥有该命令行驱动的模型可见 policy 段、`plan:mode` runtime context 状态、退出工具 schema 与已记录状态。
 
 #### KV Cache 影响
 
-进入或离开 plan mode 会改变活跃的 `plan:policy` 系统提示词段，因此改变请求前缀；chip 本身不添加任何提示词内容。
+chip 本身不添加任何提示词内容。首次进入之后，进入或离开 plan mode 只会改变 `plan:mode` runtime-context 条目，因此请求前缀保持可复用。
 
 ## 已知限制与延期工作
 

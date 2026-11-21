@@ -7,4 +7,4 @@ header:
   class: team-session-mode
   pin: true
   changes: 2
-  promptChanges: 2
+  promptChanges: 0

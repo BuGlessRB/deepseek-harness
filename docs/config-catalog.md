@@ -184,7 +184,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-agent-team`
 
 - `inject`: `agents` · `sessions` · `sessionPersistence` · `sessionProjections` · `subagents`
-- `source`: [`packages/team/agent-team/src/types.ts:136`](../packages/team/agent-team/src/types.ts)
+- `source`: [`packages/team/agent-team/src/types.ts:148`](../packages/team/agent-team/src/types.ts)
 
 ```ts config-catalog
 /** Team-service defaults and deployment limits. */
@@ -3075,12 +3075,16 @@ export interface Config {
 ## `@deepseek-ai/dsh-plan-mode`
 
 - `inject`: `tools` · `systemPrompt` · `sessionProjections` · `agents`
-- `source`: [`packages/plan/plan-mode/src/index.ts:69`](../packages/plan/plan-mode/src/index.ts)
+- `source`: [`packages/plan/plan-mode/src/index.ts:77`](../packages/plan/plan-mode/src/index.ts)
 
 ```ts config-catalog
 /** Deployment-owned plan guidance. */
 export interface PlanModeConfig {
-  /** Guidance rendered as the `plan:policy` prompt section while plan mode is active. */
+  /**
+   * Guidance rendered as the `plan:policy` prompt section from the first step
+   * plan mode is selected, and for the rest of the Session; the `plan:mode`
+   * runtime context reports whether it applies to the current step.
+   */
   section: string
 }
 ```
@@ -4306,7 +4310,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-system-prompt`
 
 - `inject`: `sessionProjections`
-- `source`: [`packages/core/system-prompt/src/index.ts:316`](../packages/core/system-prompt/src/index.ts)
+- `source`: [`packages/core/system-prompt/src/index.ts:318`](../packages/core/system-prompt/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: the deployment-authored fragment of the system prompt (see {@link Config.personaPrefix} for its contract). */
@@ -4623,7 +4627,7 @@ export type TokenMeterConfig = Record<string, never>
 ## `@deepseek-ai/dsh-tool-agent-team`
 
 - `inject`: `agentTeams` · `subagents` · `tools` · `systemPrompt`
-- `source`: [`packages/team/tool-agent-team/src/index.ts:18`](../packages/team/tool-agent-team/src/index.ts)
+- `source`: [`packages/team/tool-agent-team/src/index.ts:24`](../packages/team/tool-agent-team/src/index.ts)
 
 ```ts config-catalog
 /** The Team tool plugin takes no configuration. */

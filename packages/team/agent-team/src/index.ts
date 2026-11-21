@@ -15,6 +15,7 @@ import type { TeamTaskId } from './types.ts'
 import type {
   Config,
   CreateTeamTaskRequest,
+  TeamMode,
   TeamTaskView,
   UpdateTeamTaskRequest,
 } from './types.ts'
@@ -89,11 +90,24 @@ export class TeamService extends TypertRemoteService {
   /**
    * Read the Team selection shared by the caller's subagent tree.
    * @param caller - exact live root or descendant.
-   * @returns whether Team tools and guidance are enabled.
+   * @returns whether Team tools apply to the current step. The guidance section
+   * is reported separately by {@link mode}, because it outlives the selection.
    */
   isEnabled(caller: Agent): boolean {
-    const root = this.ctx.subagents.rootOf(caller)
-    return this.projection.stateOf(root.session).enabled === true
+    return this.mode(caller).enabled
+  }
+
+  /**
+   * Read the Team mode shared by the caller's subagent tree.
+   * @param caller - exact live root or descendant.
+   * @returns the current selection, and whether this tree has ever enabled Team
+   * mode — which keeps the Team guidance section in the system prompt after
+   * the mode is switched off, so a mode change reaches the model through the
+   * runtime context instead of a rewritten request prefix.
+   */
+  mode(caller: Agent): TeamMode {
+    const state = this.projection.stateOf(this.ctx.subagents.rootOf(caller).session)
+    return { enabled: state.enabled === true, entered: state.entered === true }
   }
 
   /**

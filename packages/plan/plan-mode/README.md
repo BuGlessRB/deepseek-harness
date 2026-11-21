@@ -45,7 +45,7 @@ The only required configuration is the guidance text the agent follows while pla
 
 | Field | Default | Meaning |
 |---|---|---|
-| `section` | required | Conditional `plan:policy` guidance retained after the first plan-mode entry |
+| `section` | required | Guidance rendered as the `plan:policy` prompt section from the first plan-mode entry on; the runtime context says whether it applies |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-plan-mode) is the exhaustive source for every accepted field and its JSDoc.
 
@@ -78,7 +78,7 @@ This section explains the design decisions behind the package and points at the 
 
 ### Design philosophy
 
-Plan mode is a product package, not a capability seam: there is no swappable backend, so the state, guidance, command, and exit tool live in one place. The durable stance is one log-only whole-value-replace event, never a live mirror, so resume, fork, and compaction recover it by folding the log. Guidance is a soft layer — the package registers one prompt section and one tool, and restrains through text rather than filtering capabilities.
+Plan mode is a product package, not a capability seam: there is no swappable backend, so the state, guidance, command, and exit tool live in one place. The durable stance is one log-only whole-value-replace event, never a live mirror, so resume, fork, and compaction recover it by folding the log. Guidance is a soft layer — the package registers one prompt section, one runtime context, and one tool, and restrains through text rather than filtering capabilities. The section is standing text and the context carries the state, so a mode change never rewrites the cached request prefix.
 
 ### Durable state and step-boundary appends
 
@@ -86,11 +86,11 @@ The package persists one log-only whole-value event, `plan/mode`, and the last l
 
 ### The `/plan` command
 
-The command child activates only when a commands service is composed. It maps bare `/plan` to active, the exact argument `off` to inactive without model input, and any other non-empty argument to active plus the trimmed text submitted through `agent.steer()` as the next step's ordinary logged user message. Admitted image and file blocks keep their selection order in that message; `/plan off` with attachments fails before any mode change. Entry points other than the command may drive `ctx.planMode` directly; the exact branch handling is in [`src/index.ts`](src/index.ts).
+The command child activates only when a commands service is composed. It maps bare `/plan` to active, the exact argument `off` to inactive without model input, and any other non-empty argument to active plus the trimmed text submitted through `agent.steer()` as the next step's ordinary logged user message. Admitted image and file blocks keep their selection order in that message; `/plan off` with attachments fails before any mode change. Every committed user-selected mode transition adds a logged user-switch notice, including entry before the first request; no-op selections and pending switches cancelled before commitment add none, and an approved exit tool result explains its transition without an extra notice. Entry points other than the command may drive `ctx.planMode` directly; the exact branch handling is in [`src/index.ts`](src/index.ts).
 
 ### The exit tool
 
-`exit_plan_mode` is disclosed progressively: it is admitted from the first step whose selected plan state is active and stays admitted for the rest of the Session, so entering plan mode the first time adds it together with the guidance, and later transitions change only the guidance; Native and PTC execution use the same admitted set. A call while plan mode is not committed fails with `PlanModeError` `PLAN_NOT_ACTIVE`, and a plan without a leading `#` heading fails with `ToolArgsError` before review. An approved review records a silent pending exit that the next accepted in-turn pre-step appends, keeping plan guidance for the rest of the current tool batch. Without a user-questions channel (`ToolContextUnavailableError`), or after a service reload while the review is pending (`PLAN_REVIEW_INTERRUPTED`), the call fails closed and `/plan off` remains the manual escape. [`src/error.ts`](src/error.ts) lists the `PlanModeError` codes.
+`exit_plan_mode` is disclosed progressively: it is admitted from the first step whose selected plan state is active and stays admitted for the rest of the Session, so entering plan mode the first time adds it together with the static guidance, and later transitions change only the `plan:mode` runtime context; Native and PTC execution use the same admitted set. A call while plan mode is not committed fails with `PlanModeError` `PLAN_NOT_ACTIVE`, and a plan without a leading `#` heading fails with `ToolArgsError` before review. An approved review records a silent pending exit that the next accepted in-turn pre-step appends, keeping plan guidance for the rest of the current tool batch. Without a user-questions channel (`ToolContextUnavailableError`), or after a service reload while the review is pending (`PLAN_REVIEW_INTERRUPTED`), the call fails closed and `/plan off` remains the manual escape. [`src/error.ts`](src/error.ts) lists the `PlanModeError` codes.
 
 ### Session projection unit
 
@@ -102,7 +102,7 @@ The unit turns logged `/plan` command runs into a candidate target, commits the 
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: `Config` schema, the `ctx.planMode` service, `plan:policy` section, `/plan` command, `exit_plan_mode` tool |
+| [`src/index.ts`](src/index.ts) | Plugin entry: `Config` schema, the `ctx.planMode` service, `plan:policy` section and `plan:mode` context, `/plan` command, `exit_plan_mode` tool |
 | [`src/types.ts`](src/types.ts) | The `plan` projection-key declaration and `PlanProjection` wire value |
 | [`src/error.ts`](src/error.ts) | `PlanModeError` and its closed code union |
 | [`src/client.ts`](src/client.ts) | Client-namespace re-export of the types outlet |
@@ -133,7 +133,7 @@ Read these pages when the package-level contract is not enough. They move from t
 
 #### What the model sees
 
-The first entry introduces `plan:policy`: a conditional introduction followed by the configured `section` text. The policy remains registered after exit. A separate `plan:status` states whether plan mode is active; exit and reentry change only this status. After compaction, the service restores the policy and current status together.
+From the first step plan mode applies, the model sees the deployment's exact `section` text at first-party prompt order 500, under a fixed sentence saying that the guidance applies only while the session information reports plan mode as active. The section stays for the rest of the Session, including every later step and every later exit.
 
 ##### Configuration example
 
@@ -143,25 +143,39 @@ You are in plan mode. Explore and design before presenting the complete plan thr
 
 #### Token effect
 
-Before first entry, plan mode contributes no text. Afterwards, the policy stays in history; each transition adds only a short status notice. Compaction introduces the retained policy and current status once.
+A Session that never enters plan mode adds no tokens. The first entry adds the framing sentence and the configured section to every later request; the text is unchanged after that. Each committed user-selected transition adds a short retained notice; attachments have their normal image and file-handle cost.
 
 #### KV Cache effect
 
-Mode transitions append status without changing the earlier instruction prefix. The first entry also appends the policy. Provider cache reuse depends on the adapter’s representation.
+The section is byte-identical for the rest of the Session, so only the first entry changes the cached request prefix, which it does together with adding `exit_plan_mode`. Entering or leaving plan mode afterwards changes no prompt bytes. User content and switch notices append after the existing conversation prefix.
+
+### Plan mode runtime context
+
+#### What the model sees
+
+Every assembly carries one required `plan:mode` runtime-context contribution after the subagent delegation entry: `Plan mode is active.` or `Plan mode is inactive.` The loop logs a fresh runtime-context snapshot after the retained history only when that state differs from the snapshot the model already has, so a mode change costs one small appended message.
+
+#### Token effect
+
+The state line is a few tokens in the runtime-context snapshot, which the loop already emits for the working directory, file policy, approval policy, and subagent identity.
+
+#### KV Cache effect
+
+A mode change appends one runtime-context snapshot at the end of the request instead of appending or replacing prompt bytes, so the cached prefix up to the previous step still hits.
 
 ### Human command
 
 #### What the model sees
 
-`/plan`, `/plan off`, and their terminal results stay outside model history. A non-empty suffix other than the exact `off` argument becomes one user message through `agent.steer()` after plan mode is selected: admitted image and file blocks in selection order, then the trimmed text block. Bare `/plan` with admitted attachments steers one user message containing only those blocks. Every committed user-selected mode transition adds a logged user-switch notice, including entry before the first request. No-op selections and pending switches cancelled before commitment add none. An approved exit tool result explains its transition without an extra notice.
+`/plan`, `/plan off`, and their terminal results stay outside model history. A non-empty suffix other than the exact `off` argument becomes one user message through `agent.steer()` after plan mode is selected: admitted image and file blocks in selection order, then the trimmed text block. Bare `/plan` with admitted attachments steers one user message containing only those blocks. The command records no notice of its own: the `plan:mode` runtime context reports the state on the next step, and cancelling a pending entry changes nothing because no request observed it.
 
 #### Token effect
 
-The optional message costs the same history tokens as submitting that content separately. Each committed user-selected transition adds a short retained notice; attachments have their normal image and file-handle cost.
+The optional message costs the same history tokens as submitting that content separately. Bare `/plan` without attachments and `/plan off` add none beyond the runtime-context state line; bare `/plan` with attachments has the normal image and file-handle cost.
 
 #### KV Cache effect
 
-User content and switch notices append after the existing conversation prefix. Mode transitions append system status updates without rewriting the retained policy.
+The user block is append-only conversation growth. The command itself changes neither the policy section nor the tool list; only the appended state line reflects the new mode.
 
 ### Exit tool schema and review exchange
 
@@ -175,7 +189,7 @@ The schema is paid from the first entry on, according to ToolRuntime mode, and e
 
 #### KV Cache effect
 
-The first entry into plan mode adds the exit tool through the route’s tool-update protocol; `in-history` and `addition-only` routes record the addition after cached history, while a route without tool updates resends its changed declaration list once. Later transitions leave the tool list unchanged. Plan arguments and review results extend the conversation normally.
+The first entry into plan mode adds the exit tool through the route’s tool-update protocol; `in-history` and `addition-only` routes record the addition after cached history, while a route without tool updates resends its changed declaration list once. It is the single step that changes the prefix: the guidance section arrives with the same step, and later transitions leave both the tool list and the prompt untouched. Plan arguments and review results extend the conversation normally.
 
 ## Known Limitations and Deferred Work
 

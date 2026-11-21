@@ -45,7 +45,7 @@ kind: "package-reference"
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
-| `section` | 必填 | 首次进入计划模式后保留的条件式 `plan:policy` 指导 |
+| `section` | 必填 | 从首次进入计划模式起作为 `plan:policy` 提示词段落渲染的引导；由 runtime context 说明它当前是否适用 |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-plan-mode)完整列出了所有受支持的字段及其 JSDoc。
 
@@ -78,7 +78,7 @@ agent 完成计划后，会以 markdown 形式、从标题开头书写计划并�
 
 ### 设计理念
 
-计划模式是产品包，而不是能力 seam：没有可替换的后端，因此状态、引导、命令与退出工具都集中在一处。持久化方案采用单一仅记日志、整值替换的事件，绝不使用实时镜像，因此恢复、fork 与压缩（compaction）都通过折叠日志复原它。引导是软性层——本包注册一个提示词段落和一个工具，通过文本而非过滤能力来约束。
+计划模式是产品包，而不是能力 seam：没有可替换的后端，因此状态、引导、命令与退出工具都集中在一处。持久化方案采用单一仅记日志、整值替换的事件，绝不使用实时镜像，因此恢复、fork 与压缩（compaction）都通过折叠日志复原它。引导是软性层——本包注册一个提示词段落、一条 runtime context 和一个工具，通过文本而非过滤能力来约束。段落是常驻文本、由 context 承载状态，因此模式切换绝不重写已缓存的请求前缀。
 
 ### 持久状态与步骤边界追加
 
@@ -90,11 +90,11 @@ agent 完成计划后，会以 markdown 形式、从标题开头书写计划并�
 
 ### 退出工具
 
-`exit_plan_mode` 采用渐进式披露：从已选计划状态首次为激活的步骤起准入，并在会话剩余部分保持准入，因此首次进入计划模式时它与指引一起出现，之后的切换只改变指引；原生与 PTC 执行使用同一准入集合。计划模式未提交时调用以 `PlanModeError` `PLAN_NOT_ACTIVE` 失败，没有前导 `#` 标题的计划在评审前以 `ToolArgsError` 失败。经批准的评审会记录一个静默的待生效退出，由下一个被接受的轮内 pre-step 追加，当前这批工具调用剩余部分仍保留计划引导。缺少用户交互通道（`ToolContextUnavailableError`），或评审等待期间服务重载（`PLAN_REVIEW_INTERRUPTED`），调用都会以拒绝方式失败，`/plan off` 仍是手动退路。[`src/error.ts`](src/error.ts) 列出 `PlanModeError` 的 code。
+`exit_plan_mode` 采用渐进式披露：从已选计划状态首次为激活的步骤起准入，并在会话剩余部分保持准入，因此首次进入计划模式时它与常驻指引一起出现，之后的切换只改变 `plan:mode` runtime context；原生与 PTC 执行使用同一准入集合。计划模式未提交时调用以 `PlanModeError` `PLAN_NOT_ACTIVE` 失败，没有前导 `#` 标题的计划在评审前以 `ToolArgsError` 失败。经批准的评审会记录一个待生效退出，由下一个被接受的轮内 pre-step 追加，当前这批工具调用剩余部分仍保留计划引导。缺少用户交互通道（`ToolContextUnavailableError`），或评审等待期间服务重载（`PLAN_REVIEW_INTERRUPTED`），调用都会以拒绝方式失败，`/plan off` 仍是手动退路。[`src/error.ts`](src/error.ts) 列出 `PlanModeError` 的 code。
 
 ### 会话投影单元
 
-本包要求 `ctx.sessionProjections`，并在激活期间等待 `plan` 单元注册完成。提示词段落在等待前注册。读取句柄不可用时，Agent 提示词装配、`/plan` 命令与 `exit_plan_mode` 会以 `PlanModeError` `PLAN_STATE_UNAVAILABLE` 明确失败，避免恢复的计划模式缺少指引仍继续运行。调用方必须等待插件激活完成后再运行 Agent。
+本包要求 `ctx.sessionProjections`，并在激活期间等待 `plan` 单元注册完成。提示词段落与 `plan:mode` runtime context 都在等待前注册。读取句柄不可用时，Agent 提示词装配、`/plan` 命令与 `exit_plan_mode` 会以 `PlanModeError` `PLAN_STATE_UNAVAILABLE` 明确失败，避免恢复的计划模式缺少指引仍继续运行。调用方必须等待插件激活完成后再运行 Agent。
 
 该单元把已记录的 `/plan` 命令运行转为候选目标，在 `plan/mode` 上提交已记录状态，并为 `view` 推导 `{ active, pending }`，其中 `pending` 仅在未结算或已成功的选择与已记录状态不同时为 true——这是仅凭日志即可恢复的纯回放量。key 由 [`src/types.ts`](src/types.ts) 的声明合并加入 `SessionProjectionMap`；框架负责驱动该单元，卸载插件 fiber 会注销该 key。状态读取使用保留的句柄，注销后仍然可用。
 
@@ -102,7 +102,7 @@ agent 完成计划后，会以 markdown 形式、从标题开头书写计划并�
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 插件入口：`Config` schema、`ctx.planMode` 服务、`plan:policy` 段落、`/plan` 命令、`exit_plan_mode` 工具 |
+| [`src/index.ts`](src/index.ts) | 插件入口：`Config` schema、`ctx.planMode` 服务、`plan:policy` 段落与 `plan:mode` context、`/plan` 命令、`exit_plan_mode` 工具 |
 | [`src/types.ts`](src/types.ts) | `plan` 投影 key 声明与 `PlanProjection` 协议值 |
 | [`src/error.ts`](src/error.ts) | `PlanModeError` 及其封闭 code 联合类型 |
 | [`src/client.ts`](src/client.ts) | types 出口的客户端命名空间再导出 |
@@ -133,7 +133,7 @@ agent 完成计划后，会以 markdown 形式、从标题开头书写计划并�
 
 #### 模型看到什么
 
-首次进入会介绍 `plan:policy`：条件说明后跟配置的 `section` 文本。退出后策略仍保持注册。独立的 `plan:status` 声明计划模式是否活跃；退出和再次进入仅改变状态。压缩后服务一起恢复策略及当前状态。
+从计划模式生效的第一步起，模型会在 first-party 提示词顺序 500 处看到部署方提供的原样 `section` 文本，其上方是一句固定说明：仅当会话信息报告计划模式处于激活状态时该指引才适用。该段落在会话余下时间里一直保留，包括之后的每一步与每一次退出。
 
 ##### 配置示例
 
@@ -143,25 +143,39 @@ You are in plan mode. Explore and design before presenting the complete plan thr
 
 #### Token 影响
 
-首次进入前，计划模式不贡献文本。之后策略保留在历史中；每次转换仅增加简短状态通知。压缩后一次性介绍保留的策略和当前状态。
+从未进入计划模式的会话不增加 token。首次进入会把说明句与已配置的段落加入之后的每个请求；此后文本不再变化。
 
 #### KV Cache 影响
 
-模式转换追加状态，不改变此前指令前缀。首次进入还会追加策略。提供方缓存复用取决于适配器的表示。
+该段落在会话余下时间里逐字节相同，因此只有首次进入会改变已缓存的请求前缀——那一步同时还会加入 `exit_plan_mode`。此后进入或离开计划模式不改变任何提示词字节。
+
+### 计划模式 runtime context
+
+#### 模型看到什么
+
+每次组装都会在 subagent 委派条目之后携带一条必需的 `plan:mode` runtime-context 条目：`Plan mode is active.` 或 `Plan mode is inactive.`。只有当该状态与模型已持有的快照不同时，循环才会在保留历史之后记录一份新的 runtime-context 快照，因此一次模式切换只花费一条小型追加消息。
+
+#### Token 影响
+
+该状态行只是 runtime-context 快照中的几个 token，而该快照本就承载工作目录、文件策略、审批策略与 subagent 身份。
+
+#### KV Cache 影响
+
+模式切换会在请求末尾追加一份 runtime-context 快照，而不是追加或替换提示词字节，因此直到上一步的可缓存前缀仍然命中。
 
 ### 人类命令
 
 #### 模型看到什么
 
-`/plan`、`/plan off` 及其终端结果留在模型历史之外。除恰好为 `off` 以外的非空后缀会在选择计划模式后，通过 `agent.steer()` 成为一条用户消息：已准入的图片块与文件块按选择顺序排列，之后是去除首尾空白的文本块。不带参数的 `/plan` 若带有已准入附件，会通过 `agent.steer()` 提交一条只含这些块的用户消息。每次已提交的用户模式切换都会追加已记录的用户切换通知，包括首次请求前进入计划模式。无变化的选择和提交前取消的待生效切换不会追加通知。获批退出由工具结果说明，不追加额外通知。
+`/plan`、`/plan off` 及其终端结果留在模型历史之外。除恰好为 `off` 以外的非空后缀会在选择计划模式后，通过 `agent.steer()` 成为一条用户消息：已准入的图片块与文件块按选择顺序排列，之后是去除首尾空白的文本块。不带参数的 `/plan` 若带有已准入附件，会通过 `agent.steer()` 提交一条只含这些块的用户消息。每次已提交的用户选择模式切换都会记录一条 user-switch 通知，包括首次请求之前的进入；无变化的选以及提交前被取消的待生效切换不会记录，而经批准的退出工具结果会说明其切换，不再追加通知。
 
 #### Token 影响
 
-可选消息的历史 token 成本与单独提交该内容相同。每次已提交的用户模式切换都会追加简短且保留的通知；附件产生常规图片与文件句柄成本。
+可选消息的历史 token 成本与单独提交该内容相同。每次已提交的用户选择切换会增加一条简短的保留通知；不带附件的 `/plan` 与 `/plan off` 除 runtime-context 状态行与该通知外不增加 token；带附件的 `/plan` 产生常规图片与文件句柄成本。
 
 #### KV Cache 影响
 
-用户内容和切换通知追加在已有对话前缀之后。模式转换追加系统状态更新，不重写保留的策略。
+用户块与切换通知都是仅追加的对话增长。该命令本身既不改变策略段落也不改变工具列表；只有追加的状态行反映新模式。
 
 ### 退出工具 schema 与评审交互
 
@@ -175,7 +189,7 @@ schema 从首次进入计划模式起按 ToolRuntime 模式计入开销；每份
 
 #### KV Cache 影响
 
-首次进入计划模式时，退出工具通过路由的工具更新协议新增；`in-history` 与 `addition-only` 路由在已缓存历史之后记录这次新增，不支持工具更新的路由会重新发送一次变化后的声明列表。之后的模式切换不改变工具列表。计划参数与评审结果正常扩展对话。
+首次进入计划模式时，退出工具通过路由的工具更新协议新增；`in-history` 与 `addition-only` 路由在已缓存历史之后记录这次新增，不支持工具更新的路由会重新发送一次变化后的声明列表。它是唯一改变前缀的一步：指引段落在同一步到来，之后的切换既不改变工具列表也不改变提示词。计划参数与评审结果正常扩展对话。
 
 ## 已知限制与延期工作
 

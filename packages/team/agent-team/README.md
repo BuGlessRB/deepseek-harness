@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-New Sessions, including ordinary forks, default to Team mode off. See the [Session-mode upgrade guide](../../../docs/upgrade-guide/v0.2.1-rc.2/session-team-mode/guide.md). Select **Use Agent Teams** in the root Session’s model and reasoning menu. Turning it off hides Team tools and guidance from subsequent steps throughout the tree while retaining tasks and subagents. The saved selection survives restart; a historical task board without a saved selection remains enabled.
+New Sessions, including ordinary forks, default to Team mode off. See the [Session-mode upgrade guide](../../../docs/upgrade-guide/v0.2.1-rc.2/session-team-mode/guide.md). Select **Use Agent Teams** in the root Session’s model and reasoning menu. Turning it off hides Team tools from subsequent steps throughout the tree while retaining tasks, subagents, and the guidance section already included in the system prompt; the `team:mode` runtime context reports the state. The saved selection survives restart; a historical task board without a saved selection remains enabled.
 
 Set `defaultEnabled: true` to enable new root Sessions, including ordinary forks, before their first model step. Initialization saves the selection as `team/mode`; a save failure rejects Agent creation. Existing selections take precedence, and resuming a Session never applies the default, including when no selection was saved. Descendants use their live root's mode. The [SDK configuration guide](../../../docs/user/guide/python-sdk.md#enable-team-mode) includes a ready-to-use patch; the standard bundle keeps this option off.
 
@@ -139,7 +139,7 @@ Team requires `sessionPersistence` before activation. `Service.init` awaits regi
 
 Task mutations honor cancellation before appending `team/task` to the exact live root Session, then await the flush. Cancellation cannot retract an appended record. A failed flush or one with no participating listener raises `TEAM_TASK_PERSISTENCE_UNCONFIRMED` with the task id and revision: the task is already visible, but durability is unknown. Read that task before retrying. Task records remain log-only. No committed task or historical payload generation is rewritten.
 
-The projection ignores historical roster and mailbox records without validating or retaining their payloads. It stores only the task board, saved mode, and recovery metadata. Version-7 checkpoints without `ownerName` remain usable; suffix replay records names from later task events without backfilling historical tasks. Incompatible projection checkpoints rebuild from the unchanged Session log; see the [upgrade guide](../../../docs/upgrade-guide/v0.2.1-rc.3/team-projection/guide.md).
+The projection ignores historical roster and mailbox records without validating or retaining their payloads. It stores only the task board, saved mode, whether the tree ever enabled Team mode, and recovery metadata. A checkpoint written by an earlier state version cannot supply the new `entered` fact, so it is discarded and the key refolds from the unchanged Session log; see the [upgrade guide](../../../docs/upgrade-guide/v0.2.1-rc.3/team-projection/guide.md).
 
 ### Disposal
 
