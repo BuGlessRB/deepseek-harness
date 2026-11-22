@@ -175,6 +175,12 @@ The root [contributor instructions](../AGENTS.md#commands) summarize common comm
 pnpm cache-report --since 2026-11-01 --show-examples
 ```
 
+An `unexplained` miss is the residual no log evidence accounts for: the request prefix was byte-identical and the provider still billed it uncached. `--attribute-providers` describes such a miss, the call before it, and the call after it through the gateway's generation endpoint, using the response id the log already records, and states whether routing moved the call to a provider the neighbours did not use or the endpoint dropped a prefix it had already cached. It is the only flag that reaches the network, and it reads its credential from the variable named by `--api-key-env` (`OPENROUTER_API_KEY` by default) for the endpoint named by `--generation-endpoint`:
+
+```sh
+pnpm cache-report --project <slug> --attribute-providers --api-key-env OPENROUTER_API_KEY
+```
+
 ### Profile runs
 
 Run the repository build separately before using these source-checkout demos:

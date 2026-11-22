@@ -36,6 +36,7 @@ import {
   runCacheReport,
   type CacheReport,
   type CacheReportOptions,
+  type GenerationLookup,
 } from './cache-report.ts'
 
 const OWNED_ROOTS = new Set<string>()
@@ -192,7 +193,7 @@ class Log {
   }
 
   /** Append a model call with its reported usage inside the open step. */
-  assistant(value: TokenUsage, text = 'answer'): SessionEvent {
+  assistant(value: TokenUsage, text = 'answer', responseId?: string): SessionEvent {
     return this.keep({
       type: 'assistant/message',
       ...this.next(),
@@ -201,7 +202,13 @@ class Log {
         step: this.step,
         message: createAssistantMessage({
           content: [{ type: 'text', text }],
-          source: { provider: 'mock', model: 'mock' },
+          source: {
+            provider: 'mock',
+            model: 'mock',
+            ...responseId === undefined
+              ? {}
+              : { replayState: { response: { kind: 'mock', responseId } } },
+          },
         }),
         stream: [],
         usage: value,
@@ -332,9 +339,9 @@ function twoCalls(log: Log, value: EpochHeader = header()): void {
 }
 
 /** Record one model call as its own step. */
-function call(log: Log, value: TokenUsage): SessionEvent {
+function call(log: Log, value: TokenUsage, responseId?: string): SessionEvent {
   log.beginStep()
-  const event = log.assistant(value)
+  const event = log.assistant(value, 'answer', responseId)
   log.endStep()
   return event
 }
@@ -582,6 +589,123 @@ describe('cache report attribution', () => {
   })
 })
 
+describe('cache report provider attribution', () => {
+  /** A Session whose second call is a large residual miss, with recorded response ids. */
+  async function residualSession(root: string, ids: readonly (string | undefined)[]): Promise<void> {
+    const log = new Log()
+    log.beginTurn()
+    log.header(header(), 'initial')
+    log.beginStep()
+    log.system('stable base')
+    log.endStep()
+    log.user('go')
+    call(log, usage(40, 0), ids[0])
+    log.user('tiny')
+    call(log, usage(6000, 0), ids[1])
+    log.user('tiny again')
+    call(log, usage(12, 60), ids[2])
+    log.endTurn()
+    await writeSession(root, 'residual', log.built)
+  }
+
+  /** A lookup answering from a fixed id-to-provider table. */
+  function lookupOf(table: ReadonlyMap<string, string>): GenerationLookup {
+    return async ({ url }) => {
+      const id = new URL(url).searchParams.get('id') ?? ''
+      const provider = table.get(id)
+      if (provider === undefined) throw new Error(`unknown generation ${id}`)
+      return { data: { provider_name: provider, native_tokens_cached: 3 } }
+    }
+  }
+
+  it('attributes a miss to a changed provider as rerouted', async () => {
+    const root = await temporaryRoot()
+    await residualSession(root, ['gen-a', 'gen-b', 'gen-c'])
+    const value = await report(root, {
+      providerAttribution: {
+        endpoint: 'https://example.test/generation',
+        apiKey: 'secret',
+        lookup: lookupOf(new Map([['gen-a', 'Alpha'], ['gen-b', 'Beta'], ['gen-c', 'Alpha']])),
+      },
+    })
+
+    const providers = value.providers
+    expect(providers?.reroutedCalls).toBe(1)
+    expect(providers?.keptCalls).toBe(0)
+    expect(providers?.resolved).toBe(3)
+    expect(providers?.unresolved).toBe(0)
+    expect(providers?.misses[0]?.provider).toBe('Beta')
+    expect(providers?.misses[0]?.previousProvider).toBe('Alpha')
+    expect(providers?.misses[0]?.nextProvider).toBe('Alpha')
+    expect(providers?.misses[0]?.rerouted).toBe(true)
+    const text = renderText(value)
+    expect(text).toContain('provider attribution')
+    expect(text).toContain('rerouted        1 misses')
+    expect(text).toContain('served by Beta (previous Alpha, next Alpha)')
+  })
+
+  it('keeps the miss with its neighbour as the same provider', async () => {
+    const root = await temporaryRoot()
+    await residualSession(root, ['gen-a', 'gen-b', 'gen-c'])
+    const value = await report(root, {
+      providerAttribution: {
+        endpoint: 'https://example.test/generation',
+        apiKey: 'secret',
+        lookup: lookupOf(new Map([['gen-a', 'Alpha'], ['gen-b', 'Alpha'], ['gen-c', 'Alpha']])),
+      },
+    })
+
+    expect(value.providers?.keptCalls).toBe(1)
+    expect(value.providers?.reroutedCalls).toBe(0)
+    expect(value.providers?.misses[0]?.rerouted).toBe(false)
+  })
+
+  it('reports a failed lookup and still decides from the surviving neighbour', async () => {
+    const root = await temporaryRoot()
+    await residualSession(root, ['gen-a', 'gen-b', 'gen-c'])
+    const value = await report(root, {
+      providerAttribution: {
+        endpoint: 'https://example.test/generation',
+        apiKey: 'secret',
+        lookup: lookupOf(new Map([['gen-b', 'Beta'], ['gen-c', 'Gamma']])),
+      },
+    })
+
+    const providers = value.providers
+    expect(providers?.unresolved).toBe(1)
+    expect(providers?.resolved).toBe(2)
+    expect(providers?.failure).toContain('unknown generation gen-a')
+    expect(providers?.misses[0]?.previousProvider).toBeUndefined()
+    expect(providers?.misses[0]?.nextProvider).toBe('Gamma')
+    expect(providers?.reroutedCalls).toBe(1)
+    expect(renderText(value)).toContain('first lookup failure: unknown generation gen-a')
+  })
+
+  it('counts a miss without a recorded response id as undecided', async () => {
+    const root = await temporaryRoot()
+    await residualSession(root, ['gen-a', undefined, 'gen-c'])
+    const value = await report(root, {
+      providerAttribution: {
+        endpoint: 'https://example.test/generation',
+        apiKey: 'secret',
+        lookup: lookupOf(new Map([['gen-a', 'Alpha'], ['gen-c', 'Alpha']])),
+      },
+    })
+
+    expect(value.providers?.undecidedCalls).toBe(1)
+    expect(value.providers?.misses).toHaveLength(0)
+    expect(renderText(value)).toContain('undecided       1 misses')
+  })
+
+  it('stays offline unless attribution was requested', async () => {
+    const root = await temporaryRoot()
+    await residualSession(root, ['gen-a', 'gen-b', 'gen-c'])
+    const value = await report(root)
+    expect(value.providers).toBeUndefined()
+    expect(renderText(value)).not.toContain('provider attribution')
+  })
+})
+
 describe('cache report command line', () => {
   it('resolves documented defaults', () => {
     const parsed = parseOptions([])
@@ -593,6 +717,30 @@ describe('cache report command line', () => {
     expect(parsed.options.includeSteps).toBe(false)
     expect(parsed.options.origin).toBe('all')
     expect(parsed.options.root.endsWith('sessions')).toBe(true)
+    expect(parsed.options.providerAttribution).toBeUndefined()
+  })
+
+  it('resolves the provider lookup from the named key variable', () => {
+    const before = process.env.DSH_CACHE_REPORT_TEST_KEY
+    process.env.DSH_CACHE_REPORT_TEST_KEY = 'secret'
+    try {
+      const parsed = parseOptions(['--attribute-providers', '--api-key-env', 'DSH_CACHE_REPORT_TEST_KEY'])
+      expect(parsed.options.providerAttribution).toEqual({
+        endpoint: 'https://openrouter.ai/api/v1/generation',
+        apiKey: 'secret',
+      })
+      const custom = parseOptions([
+        '--attribute-providers',
+        '--api-key-env', 'DSH_CACHE_REPORT_TEST_KEY',
+        '--generation-endpoint', 'https://example.test/generation',
+      ])
+      expect(custom.options.providerAttribution?.endpoint).toBe('https://example.test/generation')
+    } finally {
+      if (before === undefined) delete process.env.DSH_CACHE_REPORT_TEST_KEY
+      else process.env.DSH_CACHE_REPORT_TEST_KEY = before
+    }
+    expect(() => parseOptions(['--attribute-providers', '--api-key-env', 'DSH_CACHE_REPORT_TEST_KEY_ABSENT']))
+      .toThrow(/needs an API key in \$DSH_CACHE_REPORT_TEST_KEY_ABSENT/)
   })
 
   it('parses spans, dates, and report switches', () => {

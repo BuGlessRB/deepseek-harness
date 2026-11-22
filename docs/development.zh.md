@@ -180,6 +180,12 @@ keyless [CI 工作流](../.github/workflows/ci.yml) 将独立门禁分组到若�
 pnpm cache-report --since 2026-11-01 --show-examples
 ```
 
+`unexplained` 未命中是日志无法解释的残余部分：请求前缀逐字节相同，提供方却仍未命中缓存。`--attribute-providers` 通过网关的 generation 端点，使用日志已记录的响应 id 查询该次未命中、它之前的一次调用与之后的一次调用，并给出结论：路由把这次调用换到了相邻调用未使用的提供方，还是端点丢弃了它已经缓存的前缀。它是唯一会访问网络的开关，其凭据取自 `--api-key-env` 指定的变量（默认 `OPENROUTER_API_KEY`），端点由 `--generation-endpoint` 指定：
+
+```sh
+pnpm cache-report --project <slug> --attribute-providers --api-key-env OPENROUTER_API_KEY
+```
+
 ### Profile 运行
 
 从源码 checkout 运行这些演示前，请单独执行仓库构建：

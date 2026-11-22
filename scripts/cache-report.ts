@@ -28,6 +28,15 @@
  * Read-only and keyless. Aggregates by default; message text appears only
  * behind `--show-examples`.
  *
+ * An `unexplained` miss is the residual the log cannot attribute: the prefix was
+ * byte-identical and the provider still billed it uncached. `--attribute-providers`
+ * describes such a miss, its preceding call, and its following call through the
+ * gateway's generation endpoint, using the response id the log already records,
+ * and states whether the miss landed on a provider its neighbours did not use. A
+ * different provider means request routing moved the call; the same provider
+ * means the endpoint dropped a prefix it had already cached. Only that flag
+ * reaches the network, and it needs an API key for the endpoint.
+ *
  * @module scripts/cache-report
  */
 
@@ -42,7 +51,7 @@ import {
   isSurfaceEvent,
 } from '@deepseek-ai/dsh-session'
 import type { EpochHeader, SessionEvent, SessionHeader, SessionSeq } from '@deepseek-ai/dsh-session'
-import type { Message, TokenUsage } from '@deepseek-ai/dsh-llm'
+import type { AssistantMessage, Message, TokenUsage } from '@deepseek-ai/dsh-llm'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import * as JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import { imageOffloadProjection } from '@deepseek-ai/dsh-compaction-image-offload/projection'
@@ -73,6 +82,15 @@ const EXAMPLE_CHARS = 160
 
 /** Characters quoted before the first difference, for context. */
 const EXAMPLE_LEAD_CHARS = 40
+
+/** Gateway endpoint that describes one generation by the id the log records. */
+const DEFAULT_GENERATION_ENDPOINT = 'https://openrouter.ai/api/v1/generation'
+
+/** Environment variable holding the key for {@link DEFAULT_GENERATION_ENDPOINT}. */
+const DEFAULT_API_KEY_ENV = 'OPENROUTER_API_KEY'
+
+/** Deadline for one generation lookup, after which the call counts unresolved. */
+const LOOKUP_TIMEOUT_MS = 10_000
 
 /** How many causes the text report names with a reproducible pointer. */
 const TOP_CAUSE_COUNT = 3
@@ -190,6 +208,8 @@ interface StepRecord {
   readonly seq: number
   readonly turn: number
   readonly step: number
+  /** Provider response id recorded for the call, when the log carries one. */
+  readonly responseId?: string
 }
 
 /** Cross-session head reuse: a new Session's first call against its predecessor's. */
@@ -284,6 +304,50 @@ export interface HeaderChangeDetail {
   readonly medianToolCount: number
 }
 
+/** One unexpected miss described by the provider that served it. */
+export interface ProviderMissRow {
+  readonly slug: string
+  readonly sessionId: string
+  readonly seq: number
+  readonly turn: number
+  readonly step: number
+  readonly unexpectedMissTokens: number
+  /** Provider the gateway reports for the miss itself. */
+  readonly provider: string
+  /** Provider of the nearest earlier call of the same Session that could be described. */
+  readonly previousProvider?: string
+  /** Provider of the nearest later call of the same Session that could be described. */
+  readonly nextProvider?: string
+  /**
+   * Whether the miss landed on a provider its neighbours did not use: `true`
+   * means routing moved the call, `false` means the endpoint dropped a prefix it
+   * had already cached, and absent means no neighbour could be described.
+   */
+  readonly rerouted?: boolean
+}
+
+/** Attribution of the residual misses to the serving provider. */
+export interface ProviderAttributionReport {
+  /** Calls the endpoint described. */
+  readonly resolved: number
+  /** Lookups the endpoint could not describe. */
+  readonly unresolved: number
+  /** First lookup failure, when any lookup failed. */
+  readonly failure?: string
+  /** Misses whose serving provider is known, largest first. */
+  readonly misses: readonly ProviderMissRow[]
+  /** Misses that landed on a provider their neighbours did not use. */
+  readonly reroutedCalls: number
+  /** Their unexpected-miss tokens. */
+  readonly reroutedTokens: number
+  /** Misses that stayed on the provider that served a neighbour. */
+  readonly keptCalls: number
+  /** Their unexpected-miss tokens. */
+  readonly keptTokens: number
+  /** Misses with no describable neighbour, so routing cannot be settled. */
+  readonly undecidedCalls: number
+}
+
 /** The complete report. */
 export interface CacheReport {
   readonly root: string
@@ -315,6 +379,34 @@ export interface CacheReport {
   readonly examples: readonly CacheExample[]
   /** Every rapid call, present only when `--steps` asked for them. */
   readonly steps?: readonly CacheStepRow[]
+  /** Provider attribution of the residual misses, present only when it was requested. */
+  readonly providers?: ProviderAttributionReport
+}
+
+/** One generation lookup: the endpoint to ask about a recorded response id. */
+export interface GenerationRequest {
+  /** Absolute request URL, including the response id. */
+  readonly url: string
+  /** Bearer token for the endpoint. */
+  readonly apiKey: string
+}
+
+/**
+ * Reads one generation record from the gateway.
+ * @param request - the endpoint URL and its credential.
+ * @returns the decoded response body, or anything a test stub supplies for
+ * {@link generationFacts} to validate.
+ */
+export type GenerationLookup = (request: GenerationRequest) => Promise<unknown>
+
+/** Resolved provider attribution: where to ask, with what credential, and how. */
+export interface ProviderAttribution {
+  /** Endpoint describing one generation by its recorded id. */
+  readonly endpoint: string
+  /** Bearer token for that endpoint. */
+  readonly apiKey: string
+  /** Transport override; the default performs one HTTPS request per lookup. */
+  readonly lookup?: GenerationLookup
 }
 
 /** Resolved command-line options. */
@@ -335,6 +427,8 @@ export interface CacheReportOptions {
   readonly includeSteps: boolean
   /** Origin filter. */
   readonly origin: 'all' | 'user' | 'subagent'
+  /** Attribute residual misses through the gateway; absent keeps the report offline. */
+  readonly providerAttribution?: ProviderAttribution
 }
 
 /** One reconstructed request: the messages, header, and usage of one model call. */
@@ -349,6 +443,8 @@ interface RequestSample {
   readonly messageTokens: readonly number[]
   readonly toolsTokens: number
   readonly usage: TokenUsage
+  /** Provider response id the adapter recorded for the call, when it recorded one. */
+  readonly responseId?: string
 }
 
 /** Canonical bytes of one request header's cache-relevant fields. */
@@ -462,6 +558,31 @@ function foldMessages(events: readonly SessionEvent[], endSeq: SessionSeq): Mess
 }
 
 /**
+ * Whether a decoded JSON value is a plain object.
+ * @param value - any decoded value.
+ * @returns whether the value is a non-array object.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+/**
+ * The provider response id recorded for one assistant message. The replay
+ * envelope is adapter-private (`unknown`) by design, so the stored value is
+ * validated here rather than asserted.
+ * @param message - the assistant message as the log stores it.
+ * @returns the recorded response id, or `undefined` when the adapter recorded none.
+ */
+function recordedResponseId(message: AssistantMessage): string | undefined {
+  const envelope = message.source.replayState
+  if (!isRecord(envelope)) return undefined
+  const response = envelope['response']
+  if (!isRecord(response)) return undefined
+  const id = response['responseId']
+  return typeof id === 'string' && id.length > 0 ? id : undefined
+}
+
+/**
  * Fold one Session log into its request timeline: one sample per model call
  * that reported usage.
  * @param events - the Session log, contiguous from seq 0.
@@ -484,6 +605,7 @@ function reconstructSamples(events: readonly SessionEvent[]): RequestSample[] {
         stale = false
       }
       const facts = surface.map(messageFacts)
+      const responseId = recordedResponseId(event.data.message)
       samples.push({
         seq: event.seq,
         turn: event.data.turn,
@@ -495,6 +617,7 @@ function reconstructSamples(events: readonly SessionEvent[]): RequestSample[] {
         messageTokens: facts.map(fact => fact.tokens),
         toolsTokens: estimateToolsTokens(header),
         usage: event.data.usage,
+        ...responseId === undefined ? {} : { responseId },
       })
     }
     if (isSurfaceEvent(event) || isProjectionEvent(event)) stale = true
@@ -881,6 +1004,7 @@ function attributeSession(
       seq: sample.seq,
       turn: sample.turn,
       step: sample.step,
+      ...sample.responseId === undefined ? {} : { responseId: sample.responseId },
     })
     if (index === 0) {
       head = headSignature(sample)
@@ -888,6 +1012,170 @@ function attributeSession(
     }
   }
   return { slug, header, route, steps, head }
+}
+
+/** What one generation record states about the call that produced it. */
+interface GenerationFacts {
+  /** Provider the gateway routed the call to. */
+  readonly provider: string
+  /** Native prompt tokens the provider reported as cached. */
+  readonly cachedTokens?: number
+}
+
+/**
+ * Reduce one decoded generation record to the fields the report shows.
+ * @param value - decoded endpoint body.
+ * @returns the serving provider and its cached-token count, or `undefined` when
+ * the body does not carry a provider.
+ */
+function generationFacts(value: unknown): GenerationFacts | undefined {
+  if (!isRecord(value)) return undefined
+  const data = value['data']
+  if (!isRecord(data)) return undefined
+  const provider = data['provider_name']
+  if (typeof provider !== 'string' || provider.length === 0) return undefined
+  const cached = data['native_tokens_cached']
+  return {
+    provider,
+    ...typeof cached === 'number' && Number.isFinite(cached) ? { cachedTokens: cached } : {},
+  }
+}
+
+/**
+ * Ask the gateway about one recorded response id.
+ * @param request - the endpoint URL and its credential.
+ * @returns the decoded response body.
+ * @throws when the endpoint rejects the request or exceeds {@link LOOKUP_TIMEOUT_MS}.
+ */
+async function httpGenerationLookup(request: GenerationRequest): Promise<unknown> {
+  const response = await fetch(request.url, {
+    headers: { authorization: `Bearer ${request.apiKey}` },
+    signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
+  })
+  if (!response.ok) throw new Error(`generation lookup failed: HTTP ${response.status}`)
+  return response.json()
+}
+
+/** One call a miss is compared with. */
+interface ProviderNeighbour {
+  readonly responseId: string | undefined
+}
+
+/**
+ * The nearest earlier or later call of the same Session that recorded a
+ * response id.
+ * @param steps - the Session's calls in log order.
+ * @param from - index of the miss.
+ * @param direction - `-1` for the preceding calls, `1` for the following ones.
+ * @returns the nearest describable neighbour, or `undefined` when none recorded an id.
+ */
+function nearestNeighbour(
+  steps: readonly StepRecord[],
+  from: number,
+  direction: -1 | 1,
+): ProviderNeighbour | undefined {
+  for (let index = from + direction; index >= 0 && index < steps.length; index += direction) {
+    const responseId = steps[index]?.responseId
+    if (responseId !== undefined) return { responseId }
+  }
+  return undefined
+}
+
+/**
+ * Describe every residual miss through the gateway and decide whether request
+ * routing moved it, by comparing its serving provider with the nearest
+ * describable call on either side.
+ * @param attribution - resolved endpoint, credential, and transport.
+ * @param runs - attributed Sessions, in read order.
+ * @returns the attribution, or one with no misses when none is large enough.
+ */
+async function attributeProviders(
+  attribution: ProviderAttribution,
+  runs: readonly SessionRun[],
+): Promise<ProviderAttributionReport> {
+  const lookup = attribution.lookup ?? httpGenerationLookup
+  const described = new Map<string, GenerationFacts | undefined>()
+  let resolved = 0
+  let unresolved = 0
+  let failure: string | undefined
+  const describe = async (responseId: string | undefined): Promise<GenerationFacts | undefined> => {
+    if (responseId === undefined) return undefined
+    if (described.has(responseId)) return described.get(responseId)
+    try {
+      const facts = generationFacts(await lookup({
+        url: `${attribution.endpoint}?id=${encodeURIComponent(responseId)}`,
+        apiKey: attribution.apiKey,
+      }))
+      described.set(responseId, facts)
+      if (facts === undefined) unresolved += 1
+      else resolved += 1
+      return facts
+    } catch (error: unknown) {
+      described.set(responseId, undefined)
+      unresolved += 1
+      failure ??= error instanceof Error ? error.message : String(error)
+      return undefined
+    }
+  }
+  const misses: ProviderMissRow[] = []
+  let reroutedCalls = 0
+  let reroutedTokens = 0
+  let keptCalls = 0
+  let keptTokens = 0
+  let undecidedCalls = 0
+  for (const run of runs) {
+    for (const [index, step] of run.steps.entries()) {
+      if (step.bucket !== 'unexplained' || step.totals.unexpectedMissTokens <= LARGE_MISS_TOKENS) continue
+      const itself = await describe(step.responseId)
+      if (itself === undefined) {
+        undecidedCalls += 1
+        continue
+      }
+      const previous = nearestNeighbour(run.steps, index, -1)
+      const next = nearestNeighbour(run.steps, index, 1)
+      const previousProvider = (await describe(previous?.responseId))?.provider
+      const nextProvider = (await describe(next?.responseId))?.provider
+      // The prefix a call reuses comes from the call before it, so a provider
+      // change there is the routing evidence; the following call only speaks
+      // when nothing precedes the miss.
+      const rerouted = previousProvider !== undefined
+        ? previousProvider !== itself.provider
+        : nextProvider === undefined ? undefined : nextProvider !== itself.provider
+      if (rerouted === true) {
+        reroutedCalls += 1
+        reroutedTokens += step.totals.unexpectedMissTokens
+      } else if (rerouted === false) {
+        keptCalls += 1
+        keptTokens += step.totals.unexpectedMissTokens
+      } else {
+        undecidedCalls += 1
+      }
+      misses.push({
+        slug: step.slug,
+        sessionId: step.sessionId,
+        seq: step.seq,
+        turn: step.turn,
+        step: step.step,
+        unexpectedMissTokens: step.totals.unexpectedMissTokens,
+        provider: itself.provider,
+        ...previousProvider === undefined ? {} : { previousProvider },
+        ...nextProvider === undefined ? {} : { nextProvider },
+        ...rerouted === undefined ? {} : { rerouted },
+      })
+    }
+  }
+  misses.sort((a, b) => b.unexpectedMissTokens - a.unexpectedMissTokens)
+  return {
+    resolved,
+    unresolved,
+    ...failure === undefined ? {} : { failure },
+    misses,
+    reroutedCalls,
+    reroutedTokens,
+    keptCalls,
+    keptTokens,
+    undecidedCalls,
+  }
 }
 
 /**
@@ -935,7 +1223,10 @@ export async function runCacheReport(options: CacheReportOptions): Promise<Cache
   } finally {
     await ctx.fiber.dispose()
   }
-  return buildReport(options, runs, skippedSessions, skipped, sessionsWithoutUsage)
+  const report = buildReport(options, runs, skippedSessions, skipped, sessionsWithoutUsage)
+  const attribution = options.providerAttribution
+  if (attribution === undefined) return report
+  return { ...report, providers: await attributeProviders(attribution, runs) }
 }
 
 /**
@@ -1224,6 +1515,39 @@ export function renderText(report: CacheReport): string {
       }
     }
   }
+  const providers = report.providers
+  if (providers !== undefined) {
+    lines.push('')
+    lines.push(
+      `provider attribution (${count(providers.misses.length)} misses above ${count(LARGE_MISS_TOKENS)}`
+      + ` tokens; ${count(providers.resolved)} lookups, ${count(providers.unresolved)} unresolved):`,
+    )
+    lines.push(
+      `  rerouted   ${count(providers.reroutedCalls).padStart(6)} misses`
+      + ` ${count(providers.reroutedTokens).padStart(10)} tokens`
+      + '   the provider changed from the preceding call',
+    )
+    lines.push(
+      `  kept       ${count(providers.keptCalls).padStart(6)} misses`
+      + ` ${count(providers.keptTokens).padStart(10)} tokens`
+      + '   the preceding call used the same provider',
+    )
+    if (providers.undecidedCalls > 0) {
+      lines.push(`  undecided  ${count(providers.undecidedCalls).padStart(6)} misses (no response id, or no lookup succeeded)`)
+    }
+    if (providers.failure !== undefined) lines.push(`  first lookup failure: ${providers.failure}`)
+    for (const miss of providers.misses) {
+      const neighbours = [
+        ...miss.previousProvider === undefined ? [] : [`previous ${miss.previousProvider}`],
+        ...miss.nextProvider === undefined ? [] : [`next ${miss.nextProvider}`],
+      ]
+      const suffix = neighbours.length === 0 ? '' : ` (${neighbours.join(', ')})`
+      lines.push(
+        `  ${miss.sessionId} seq ${miss.seq}: ${count(miss.unexpectedMissTokens)} tokens,`
+        + ` served by ${miss.provider}${suffix}`,
+      )
+    }
+  }
   lines.push('')
   const heads = report.headReuse
   lines.push(
@@ -1283,6 +1607,13 @@ Options:
   --origin <kind>           all, user, or subagent (default: all)
   --show-examples           Quote the first divergent bytes per cause
   --steps                   Include every rapid call in the JSON report
+  --attribute-providers     Describe each large residual miss, and the calls on
+                            either side of it, through the gateway generation
+                            endpoint; states whether routing moved the call
+  --generation-endpoint <url>  Generation lookup endpoint
+                            (default: ${DEFAULT_GENERATION_ENDPOINT})
+  --api-key-env <name>      Environment variable holding that endpoint's key
+                            (default: ${DEFAULT_API_KEY_ENV})
   --json                    Print the report as JSON
   --help                    Print this message
 `
@@ -1326,6 +1657,22 @@ function extractProject(argv: readonly string[]): { readonly args: string[]; rea
 }
 
 /**
+ * Resolve the provider lookup from the command line.
+ * @param endpoint - generation endpoint to ask.
+ * @param apiKeyEnv - environment variable holding the endpoint's key.
+ * @returns the resolved attribution.
+ * @throws when that variable is unset or empty, because a report that silently
+ * skipped attribution would read like one that found nothing to attribute.
+ */
+function resolveProviderAttribution(endpoint: string, apiKeyEnv: string): ProviderAttribution {
+  const apiKey = process.env[apiKeyEnv]
+  if (apiKey === undefined || apiKey.length === 0) {
+    throw new Error(`cache-report: --attribute-providers needs an API key in $${apiKeyEnv}`)
+  }
+  return { endpoint, apiKey }
+}
+
+/**
  * Resolve command-line arguments into report options.
  * @param argv - arguments after the script name.
  * @returns the resolved command line.
@@ -1343,6 +1690,9 @@ export function parseOptions(argv: readonly string[]): ParsedCommandLine {
       origin: { type: 'string' },
       'show-examples': { type: 'boolean' },
       steps: { type: 'boolean' },
+      'attribute-providers': { type: 'boolean' },
+      'generation-endpoint': { type: 'string' },
+      'api-key-env': { type: 'string' },
       json: { type: 'boolean' },
       help: { type: 'boolean' },
     },
@@ -1358,6 +1708,12 @@ export function parseOptions(argv: readonly string[]): ParsedCommandLine {
   if (!Number.isFinite(residualRatio) || residualRatio < 0) {
     throw new Error(`cache-report: invalid --residual-ratio "${String(residualText)}"`)
   }
+  const providerAttribution = parsed.values['attribute-providers'] === true
+    ? resolveProviderAttribution(
+      parsed.values['generation-endpoint'] ?? DEFAULT_GENERATION_ENDPOINT,
+      parsed.values['api-key-env'] ?? DEFAULT_API_KEY_ENV,
+    )
+    : undefined
   return {
     options: {
       root: parsed.values.root ?? dshHomePath('sessions'),
@@ -1370,6 +1726,7 @@ export function parseOptions(argv: readonly string[]): ParsedCommandLine {
       includeText: parsed.values['show-examples'] === true,
       includeSteps: parsed.values.steps === true,
       origin,
+      ...providerAttribution === undefined ? {} : { providerAttribution },
     },
     json: parsed.values.json === true,
     help: parsed.values.help === true,
