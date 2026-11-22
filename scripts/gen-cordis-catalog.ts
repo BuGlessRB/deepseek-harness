@@ -1121,6 +1121,7 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   ActionCardResult: 'packages/interaction/action-cards/README.md',
   ActionCardView: 'packages/interaction/action-cards/README.md',
   RecommendationDetails: 'packages/extensions/plugin-recommendations/README.md',
+  PrefixDiagnostic: 'packages/experimental/prefix-diagnostics/README.md',
   DeepseekChatImportLimits: 'upload limits returned to the browser are owned by packages/experimental/deepseek-chat-import/src/types.ts',
   ProductEvent: 'Desktop event fields are owned by packages/client/product-analytics/README.md and src/events.ts',
   ConnectionFetchHandler: 'shared Fetch dispatch is owned by packages/client/connection/src/rpc.ts',

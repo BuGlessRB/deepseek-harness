@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Enable this optional bundle to inspect Session data in the Sidebar, open NodeJS inspector in the bottom panel, and add the Statistics conversation tab. It enables both inspectors, the Statistics view, and Host fetch capture; the bundle itself is off by default in Plugin Manager.
+Enable this optional bundle to inspect Session data in the Sidebar, open NodeJS inspector in the bottom panel, and add the Statistics conversation tab. It enables both inspectors, the Statistics view, Host fetch capture, and cache-miss attribution; the bundle itself is off by default in Plugin Manager.
 
 ## Table of Contents
 
@@ -38,7 +38,7 @@ Press **Ctrl/Cmd+Shift+.** to open or collapse **NodeJS inspector** in the botto
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-[`cordis.patch.yml`](cordis.patch.yml) enables Session Inspector, the Statistics conversation view, and the NodeJS inspector backend with `captureFetch: true`, independently of debugging flags. See the Inspector [README](../inspector/README.md) for debugging and capture behavior. Each plugin owns its behavior and lifetime.
+[`cordis.patch.yml`](cordis.patch.yml) enables Session Inspector, the Statistics conversation view, the NodeJS inspector backend with `captureFetch: true`, and [prefix diagnostics](../prefix-diagnostics/README.md), which reports the request component behind an unexpected cache miss on stderr, independently of debugging flags. See the Inspector [README](../inspector/README.md) for debugging and capture behavior. Each plugin owns its behavior and lifetime.
 
 </details>
 

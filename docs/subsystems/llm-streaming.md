@@ -1254,6 +1254,24 @@ A provider's advertised models or display metadata changed; consumers reload `li
 
 Source: [`packages/llm/llm/src/types.ts`](../../packages/llm/llm/src/types.ts)
 
+<a id="llmprefix-diagnostics--emit"></a>
+
+#### `llm/prefix-diagnostics` — emit
+
+One model call's cache attribution, emitted after its usage arrives. Live only: nothing reaches the Session log.
+
+```ts cordis-catalog
+/**
+ * One model call's cache attribution, emitted after its usage arrives. Live
+ * only: nothing reaches the Session log.
+ * @param report - the call's prefix comparison and provider accounting
+ * @mode emit
+ */
+'llm/prefix-diagnostics'(report: PrefixDiagnostic): void
+```
+
+Source: [`packages/experimental/prefix-diagnostics/src/index.ts`](../../packages/experimental/prefix-diagnostics/src/index.ts)
+
 <a id="llmstream--waterfall"></a>
 
 #### `llm/stream` — waterfall

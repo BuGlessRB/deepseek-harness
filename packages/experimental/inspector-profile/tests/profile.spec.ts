@@ -17,6 +17,7 @@ describe('Inspector profile bundle', () => {
       '@deepseek-ai/dsh-experimental-client-ui-stats': 'workspace:*',
       '@deepseek-ai/dsh-experimental-inspector': 'workspace:*',
       '@deepseek-ai/dsh-experimental-session-inspector': 'workspace:*',
+      '@deepseek-ai/dsh-prefix-diagnostics': 'workspace:*',
     })
     expect(parseEntryYaml(readFileSync(new URL(`../${manifest.dsh.bundle.patch}`, import.meta.url), 'utf8'))).toEqual([{ insert: [
       {
@@ -25,6 +26,7 @@ describe('Inspector profile bundle', () => {
       },
       { id: 'session-inspector', name: '@deepseek-ai/dsh-experimental-session-inspector' },
       { id: 'client-ui-stats', name: '@deepseek-ai/dsh-experimental-client-ui-stats' },
+      { id: 'prefix-diagnostics', name: '@deepseek-ai/dsh-prefix-diagnostics' },
     ] }])
   })
 })

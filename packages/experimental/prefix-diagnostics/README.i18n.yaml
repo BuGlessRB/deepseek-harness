@@ -1,0 +1,43 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/experimental/prefix-diagnostics/README.md
+/:
+  en: 99561f5193dfcc4f
+  zh: 10cc1f5095418181
+/deepseek-ai-dsh-prefix-diagnostics:
+  en: f9ef4b8d676e1357
+  zh: 563977b03c7fdaab
+/deepseek-ai-dsh-prefix-diagnostics/summary:
+  en: 5c1b06e26aa09fa8
+  zh: d0f484512843ccfe
+/deepseek-ai-dsh-prefix-diagnostics/table-of-contents:
+  en: 76368b6b1da79c80
+  zh: 52384aee991ac542
+/deepseek-ai-dsh-prefix-diagnostics/use-this-package:
+  en: 3b62bd7c8383aeef
+  zh: 47d663ecb7ec04a1
+/deepseek-ai-dsh-prefix-diagnostics/use-this-package/when-to-choose-it:
+  en: e1bef7adfc22ffd8
+  zh: ace6818f7875ecf0
+/deepseek-ai-dsh-prefix-diagnostics/use-this-package/minimal-configuration:
+  en: c335ac31271701d9
+  zh: 8d0ccd3adf314874
+/deepseek-ai-dsh-prefix-diagnostics/understand-the-implementation:
+  en: f5a8c16bdf460134
+  zh: 10002e6484f7927e
+/deepseek-ai-dsh-prefix-diagnostics/model-experience:
+  en: 259c683f654b0f2f
+  zh: 4e9dde219c042b2a
+/deepseek-ai-dsh-prefix-diagnostics/model-experience/kv-cache-effect:
+  en: 34f120d5dee77ccd
+  zh: 03c0e365355fb599
+/deepseek-ai-dsh-prefix-diagnostics/known-limitations-and-deferred-work:
+  en: 8a6b730b7007cbda
+  zh: 0ad0d6b5f40c80f9
+/deepseek-ai-dsh-prefix-diagnostics/known-limitations-and-deferred-work/dev-note:
+  en: ac1d08360a93382b
+  zh: 7e3399d85d6148ea
+/deepseek-ai-dsh-prefix-diagnostics/known-limitations-and-deferred-work/dev-note/future-wire-level-attribution:
+  en: 67988b69ff72449a
+  zh: ae50782bca473e40

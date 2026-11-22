@@ -9,7 +9,7 @@ kind: "package-bundle"
 
 ## 概述
 
-启用这个可选组合包，即可在 Sidebar 检查 Session 数据、在底部面板打开 NodeJS 诊断，并增加「统计」会话页签。组合包启用两个 Inspector、「统计」视图和 Host fetch 采集；组合包自身在插件管理器中默认关闭。
+启用这个可选组合包，即可在 Sidebar 检查 Session 数据、在底部面板打开 NodeJS 诊断，并增加「统计」会话页签。组合包启用两个 Inspector、「统计」视图、Host fetch 采集与缓存未命中归因；组合包自身在插件管理器中默认关闭。
 
 ## 目录
 
@@ -38,7 +38,7 @@ kind: "package-bundle"
 <details>
 <summary>实现内部细节 — 点击展开</summary>
 
-[`cordis.patch.yml`](cordis.patch.yml) 启用会话数据诊断 和 NodeJS 诊断 后端，并设置 `captureFetch: true`，不依赖调试参数。调试与采集行为见 Inspector [README](../inspector/README.zh.md)。每个插件负责自身行为与生命周期。
+[`cordis.patch.yml`](cordis.patch.yml) 启用会话数据诊断、NodeJS 诊断 后端并设置 `captureFetch: true`，同时挂载[前缀诊断](../prefix-diagnostics/README.zh.md)，在缓存意外未命中时向 stderr 报告导致该次未命中的请求组成部分，均不依赖调试参数。调试与采集行为见 Inspector [README](../inspector/README.zh.md)。每个插件负责自身行为与生命周期。
 
 </details>
 

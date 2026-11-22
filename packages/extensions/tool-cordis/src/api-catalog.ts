@@ -5947,6 +5947,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'provider', description: 'route whose model catalog changed.' }],
   },
   {
+    name: 'llm/prefix-diagnostics',
+    mode: 'emit',
+    signature: '\'llm/prefix-diagnostics\'(report: PrefixDiagnostic): void',
+    summary: 'One model call\'s cache attribution, emitted after its usage arrives.',
+    description: 'One model call\'s cache attribution, emitted after its usage arrives. Live only: nothing reaches the Session log.',
+    parameters: [{ name: 'report', description: 'the call\'s prefix comparison and provider accounting' }],
+  },
+  {
     name: 'llm/stream',
     mode: 'waterfall',
     signature: '\'llm/stream\'(this: LlmRuntime, options: GenerateOptions, next: () => AsyncIterable<StreamChunk>): AsyncIterable<StreamChunk>',
@@ -8739,6 +8747,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface MessageFeedbackVersionConflict {\n    readonly code: \'version-conflict\';\n    readonly current: MessageFeedbackItem | null;\n}',
   },
   {
+    name: 'MessageHash',
+    declaration: 'export interface MessageHash {\n    readonly role: RequestMessage[\'role\'];\n    readonly hash: string;\n}',
+  },
+  {
     name: 'MessageId',
     declaration: 'export type MessageId = Branded<\'MessageId\'>;',
   },
@@ -9145,6 +9157,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'PostToolDecision',
     declaration: 'export type PostToolDecision = {\n    kind: \'accept\';\n    content?: ContentBlock[];\n    value?: never;\n    additionalContexts?: UserMessage[];\n} | {\n    kind: \'accept\';\n    value: JsonValue;\n    content?: never;\n    additionalContexts?: UserMessage[];\n} | {\n    kind: \'block\';\n    feedback: ContentBlock[];\n    info?: ToolErrorInfo;\n    additionalContexts?: UserMessage[];\n};',
+  },
+  {
+    name: 'PrefixDiagnostic',
+    declaration: 'export interface PrefixDiagnostic {\n    readonly sessionId: string;\n    readonly request: PrefixShape;\n    readonly divergence: PrefixDivergence;\n    readonly cause: string;\n    readonly headReused: boolean;\n    readonly reusedMessages: number;\n    readonly usage: TokenUsage;\n    readonly hitRate?: number;\n    readonly unexpectedMiss: boolean;\n}',
+  },
+  {
+    name: 'PrefixDivergence',
+    declaration: 'export type PrefixDivergence = {\n    readonly kind: \'first-request\';\n} | {\n    readonly kind: \'route\';\n    readonly previousProvider: string;\n    readonly previousModel: string;\n} | {\n    readonly kind: \'system\';\n} | {\n    readonly kind: \'tools\';\n} | {\n    readonly kind: \'message\';\n    readonly index: number;\n    readonly role: RequestMessage[\'role\'];\n} | {\n    readonly kind: \'shortened\';\n    readonly index: number;\n} | {\n    readonly kind: \'none\';\n    readonly appended: number;\n};',
+  },
+  {
+    name: 'PrefixShape',
+    declaration: 'export interface PrefixShape {\n    readonly provider: string;\n    readonly model: string;\n    readonly purpose?: string;\n    readonly system: string;\n    readonly tools: string;\n    readonly messages: readonly MessageHash[];\n}',
   },
   {
     name: 'PreparedAdapterCall',

@@ -84,6 +84,7 @@ describe('release families', () => {
       '@deepseek-ai/dsh-experimental-liveshare-protocol',
       '@deepseek-ai/dsh-experimental-liveshare',
       '@deepseek-ai/dsh-experimental-plugin-market-bundle',
+      '@deepseek-ai/dsh-prefix-diagnostics',
       '@deepseek-ai/dsh-experimental-ralph-bundle',
       '@deepseek-ai/dsh-experimental-session-inspector',
       '@deepseek-ai/dsh-experimental-session-search',

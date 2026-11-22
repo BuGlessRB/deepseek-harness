@@ -3199,6 +3199,25 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-plugin-package-inventory-deepseek -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-prefix-diagnostics -->
+<a id="deepseek-aidsh-prefix-diagnostics"></a>
+
+## `@deepseek-ai/dsh-prefix-diagnostics`
+
+- `inject`: `llm`
+- `source`: [`packages/experimental/prefix-diagnostics/src/index.ts:60`](../packages/experimental/prefix-diagnostics/src/index.ts)
+
+```ts config-catalog
+/** Loader configuration: every field falls back to its documented default. */
+export interface Config {
+  /** Report an unexpected miss when the cache covered less than this share of the call's input (default 0.5). */
+  readonly minHitRate?: number
+  /** Maximum Session request series whose preceding prefix stays in memory (default 256). */
+  readonly maxSeries?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-prefix-diagnostics -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-ptc-runtime-node -->
 <a id="deepseek-aidsh-ptc-runtime-node"></a>
 

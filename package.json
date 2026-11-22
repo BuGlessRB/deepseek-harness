@@ -330,6 +330,7 @@
     "@deepseek-ai/dsh-forge-gitlab": "workspace:*",
     "@deepseek-ai/dsh-experimental-forge-session": "workspace:*",
     "@deepseek-ai/dsh-action-cards": "workspace:*",
-    "@deepseek-ai/dsh-tool-session-list": "workspace:*"
+    "@deepseek-ai/dsh-tool-session-list": "workspace:*",
+    "@deepseek-ai/dsh-prefix-diagnostics": "workspace:*"
   }
 }

@@ -320,6 +320,7 @@
     { "path": "./packages/interaction/action-cards" },
     { "path": "./packages/extensions/creation-recommendations" },
     { "path": "./packages/extensions/plugin-recommendations" },
+    { "path": "./packages/experimental/prefix-diagnostics" },
 
     { "path": "./packages/experimental/client-ui-cot-translation/tsconfig.host.json" },
     { "path": "./packages/experimental/cot-translation-bundle" },

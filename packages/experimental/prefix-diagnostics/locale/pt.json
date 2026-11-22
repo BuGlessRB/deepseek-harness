@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Diagnóstico de prefixo",
+    "description": "Atribua a falha de cache de prompt de cada chamada ao modelo ao componente da solicitação que mudou e veja o que o provedor realmente armazenou em cache."
+  }
+}

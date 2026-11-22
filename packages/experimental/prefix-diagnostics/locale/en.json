@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Prefix diagnostics",
+    "description": "Attribute each model call's prompt-cache miss to the request component that changed, and see what the provider actually cached."
+  }
+}

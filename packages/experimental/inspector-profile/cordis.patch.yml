@@ -8,3 +8,5 @@
       name: '@deepseek-ai/dsh-experimental-session-inspector'
     - id: client-ui-stats
       name: '@deepseek-ai/dsh-experimental-client-ui-stats'
+    - id: prefix-diagnostics
+      name: '@deepseek-ai/dsh-prefix-diagnostics'
