@@ -58,6 +58,14 @@ function waitForIdle(ctx: Context, agent: Agent): Promise<void> {
   })
 }
 
+/** Assert `current` extends `previous` by value: same prompt and tools, every earlier message byte-identical. */
+function expectPrefixExtension(previous: GenerateOptions, current: GenerateOptions): void {
+  expect(current.messages.length).toBeGreaterThan(previous.messages.length)
+  expect(current.messages.slice(0, previous.messages.length)).toEqual([...previous.messages])
+  expect(current.system).toBeUndefined()
+  expect(current.tools).toEqual(previous.tools)
+}
+
 /** Read the plan unit that backs the service in this full composition. */
 function planActive(ctx: Context, agent: Agent): boolean {
   const state = ctx.planMode.get(agent)
@@ -168,6 +176,52 @@ describe('plan mode through the agent loop', () => {
     const secondHeader = findEvent(log, 'request/header', 'last')
     expect(secondHeader.data.header.tools?.map(tool => tool.name)).toEqual(['exit_plan_mode', 'read', 'write'])
     expect(secondHeader.data.header.tools).not.toEqual(first.data.header.tools)
+  })
+
+  it('a later mode flip appends tail state without touching the admitted prompt or tools', async () => {
+    const adapter = new MockAdapter([
+      textResponse('First turn, default mode.'),
+      textResponse('Second turn, plan mode.'),
+      textResponse('Third turn, back to default mode.'),
+      textResponse('Fourth turn, plan mode again.'),
+    ])
+    const ctx = await harness(adapter)
+    const agent = await ctx.agentLoop.create(brandString<SessionId>('it-plan-relapse'), { provider: 'mock', model: 'mock' })
+    const say = async (text: string): Promise<void> => {
+      agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }))
+      await waitForIdle(ctx, agent)
+    }
+
+    await say('hello')
+    ctx.planMode.set(agent, true)
+    await say('now plan')
+    // Entering admitted the guidance section and the exit tool; leaving and re-entering must not touch them again.
+    ctx.planMode.set(agent, false)
+    await say('execute the plan')
+    ctx.planMode.set(agent, true)
+    await say('plan again')
+
+    expect(adapter.requests).toHaveLength(4)
+    const [first, second, third, fourth] = adapter.requests as [GenerateOptions, GenerateOptions, GenerateOptions, GenerateOptions]
+    expect(requestSystem(second)).toContain(PLAN_CONFIG.section)
+    expectPrefixExtension(second, third)
+    expectPrefixExtension(third, fourth)
+    expect(requestSystem(third)).toBe(requestSystem(second))
+    expect(requestSystem(fourth)).toBe(requestSystem(second))
+
+    const log = agent.session.snapshotEvents()
+    // One prompt node and one header snapshot after admission, whatever the mode does later.
+    expect(log.filter(event => event.type === 'system/message')).toHaveLength(2)
+    expect(log.filter(event => event.type === 'request/header').map(event => event.data.reason)).toEqual(['initial', 'change'])
+    expect(log.flatMap(event => event.type === 'user/message' && event.data.source.kind === 'runtime-context'
+      ? [textOf(event.data)]
+      : [])).toEqual([
+      expect.stringContaining('Plan mode is inactive.'),
+      expect.stringContaining('Plan mode is active.'),
+      expect.stringContaining('Plan mode is inactive.'),
+      expect.stringContaining('Plan mode is active.'),
+    ])
+    expect(first.tools).not.toEqual(second.tools)
   })
 
   it('a mode flip at error settlement waits until the step after a same-step retry', async () => {

@@ -595,6 +595,84 @@ describe('request stability across the loop', () => {
       event.type === 'request/header' ? [event.data.reason] : [])).toEqual(['initial', 'series'])
   })
 
+  it('a tool added mid-session on an addition-only route appends to the declarations and preserves the prefix', async () => {
+    const adapter = new MockAdapter([textResponse('one'), textResponse('two')])
+    adapter.toolUpdate = 'addition-only'
+    const ctx = await harness(adapter)
+    registerEcho(ctx)
+    const agent = await ctx.agentLoop.create(brandString<SessionId>('tool-addition'), { provider: 'mock', model: 'mock' })
+
+    send(agent, 'first')
+    await waitForIdle(ctx, agent)
+    ctx.tools.register(defineContentToolFixture({
+      name: 'read',
+      description: 'read a file',
+      parameters: { path: { type: 'string' } },
+      async execute() {
+        return [{ type: 'text', text: 'read' }]
+      },
+    }))
+    send(agent, 'second')
+    await waitForIdle(ctx, agent)
+
+    expect(adapter.requests).toHaveLength(2)
+    const [first, second] = adapter.requests as [GenerateOptions, GenerateOptions]
+    // Declarations extend rather than rebuild: the earlier schemas stay byte-identical at the head of the array.
+    expect(second.tools?.slice(0, first.tools?.length)).toEqual(first.tools)
+    expect(second.tools?.map(tool => tool.name)).toEqual(['echo', 'read'])
+    // The message prefix survives, and the addition is stated on the tail instead of a series restart.
+    expect(second.messages.slice(0, first.messages.length)).toEqual([...first.messages])
+    expect(second.system).toBeUndefined()
+    // The declaration change is a header snapshot, but not a series start: the prefix is preserved.
+    expect(agent.session.snapshotEvents().flatMap(event => event.type === 'request/header'
+      ? [{ reason: event.data.reason, startsSeries: event.data.startsSeries }]
+      : [])).toEqual([
+      { reason: 'initial', startsSeries: undefined },
+      { reason: 'change', startsSeries: undefined },
+    ])
+    expect(agent.session.snapshotEvents().flatMap(event => event.type === 'developer/message'
+      ? event.data.message.content
+      : [])).toContainEqual({ type: 'tool-addition', toolName: 'read' })
+  })
+
+  it('a changed runtime-context entry appends one partial snapshot and preserves the prefix', async () => {
+    const adapter = new MockAdapter([textResponse('one'), textResponse('two')])
+    const ctx = await harness(adapter)
+    const agent = await ctx.agentLoop.create(brandString<SessionId>('runtime-context'), { provider: 'mock', model: 'mock' })
+    let disposeClock = ctx.systemPrompt.context({ name: 'clock', order: 1, text: 'It is 10:00.' })
+    const disposePlace = ctx.systemPrompt.context({ name: 'place', order: 2, text: 'The workspace is /tmp.' })
+
+    send(agent, 'first')
+    await waitForIdle(ctx, agent)
+    disposeClock()
+    disposeClock = ctx.systemPrompt.context({ name: 'clock', order: 1, text: 'It is 10:05.' })
+    send(agent, 'second')
+    await waitForIdle(ctx, agent)
+
+    expect(adapter.requests).toHaveLength(2)
+    expectPrefixExtension(adapter.requests[0]!, adapter.requests[1]!)
+    const snapshots = agent.session.snapshotEvents().flatMap(event => event.type === 'user/message'
+      && event.data.source.kind === 'runtime-context' ? [event.data] : [])
+    expect(snapshots).toHaveLength(2)
+    const [initial, changed] = snapshots
+    const text = (message: (typeof snapshots)[number]): string => message.content
+      .flatMap(block => block.type === 'text' ? [block.text] : [])
+      .join('')
+    expect(text(initial!)).toContain('It is 10:00.')
+    expect(text(initial!)).toContain('The workspace is /tmp.')
+    // The update states only the entry that changed, so the earlier snapshot stays valid prefix bytes.
+    expect(text(changed!)).toContain('It is 10:05.')
+    expect(text(changed!)).not.toContain('The workspace is /tmp.')
+    expect(changed?.source).toMatchObject({ kind: 'runtime-context', partial: true })
+    // The next step needs no snapshot at all.
+    send(agent, 'third')
+    await waitForIdle(ctx, agent)
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'user/message'
+      && event.data.source.kind === 'runtime-context')).toHaveLength(2)
+    disposePlace()
+    disposeClock()
+  })
+
   it('a new section appends without changing the request header', async () => {
     const adapter = new MockAdapter([textResponse('one'), textResponse('two'), textResponse('three')])
     const ctx = await harness(adapter)
