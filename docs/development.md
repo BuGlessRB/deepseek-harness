@@ -167,6 +167,14 @@ The credential-free dsh dependency-layout and dsh/vendor pack rehearsals use the
 
 The root [contributor instructions](../AGENTS.md#commands) summarize common commands, while [`package.json`](../package.json) and [scripts/run-gates.ts](../scripts/run-gates.ts) own the current script and gate inventories. Select the smallest checks that cover the changed surface. Documentation changes use `pnpm run doc-sync`; package-public behavior changes also update the owning README or JSDoc, and built-artifact checks require `pnpm run build` first.
 
+### Prompt-cache diagnostics
+
+`pnpm cache-report` measures how much of each model call's prompt the provider served from its prefix cache, and attributes every miss to the request component that first broke the previous request's prefix: changed tool declarations or call configuration, a rewritten system prompt, a compaction replacement, an image offload, or a route change. It opens stored Sessions read-only through the shipped persistence stack, never writes, and reports aggregates unless `--show-examples` asks for the first divergent bytes. `--project`, `--since`, and `--json` scope one run; `--steps` adds one row per call to the JSON report for later analysis:
+
+```sh
+pnpm cache-report --since 2026-11-01 --show-examples
+```
+
 ### Profile runs
 
 Run the repository build separately before using these source-checkout demos:

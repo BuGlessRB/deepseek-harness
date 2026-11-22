@@ -50,6 +50,7 @@
     "upload:latest:win:x64": "pnpm --filter @deepseek-ai/dsh-desktop run upload:latest:win:x64",
     "purge:latest": "pnpm --filter @deepseek-ai/dsh-desktop run purge:latest",
     "clean": "tsx scripts/clean.ts",
+    "cache-report": "tsx scripts/cache-report.ts",
     "change-scope": "tsx scripts/change-scope.ts",
     "typecheck": "tsx scripts/build.ts --scope typecheck",
     "typecheck:contracts-ready": "tsc -b tsconfig.client.json",

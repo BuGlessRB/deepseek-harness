@@ -172,6 +172,14 @@ keyless [CI 工作流](../.github/workflows/ci.yml) 将独立门禁分组到若�
 
 根目录的[贡献者说明](../AGENTS.md#commands)概述常用命令，[`package.json`](../package.json) 与 [scripts/run-gates.ts](../scripts/run-gates.ts) 则负责当前脚本和门禁清单。请选择覆盖变更表面的最小检查集。文档变更使用 `pnpm run doc-sync`；包公开行为变更还需更新所属 README 或 JSDoc，而基于构建产物的检查需要先运行 `pnpm run build`。
 
+### 提示词缓存诊断
+
+`pnpm cache-report` 统计每次模型调用的提示词中有多少 token 由提供方的前缀缓存命中，并把每一次未命中归因到最先破坏上一请求前缀的请求组成部分：工具声明或调用配置变更、系统提示词重写、压缩替换、图片卸载或路由切换。它通过既有的持久化栈以只读方式打开已存储的 Session，从不写入，默认只输出汇总数据，只有 `--show-examples` 才输出首处分歧字节。`--project`、`--since` 与 `--json` 用于限定一次运行的范围；`--steps` 会在 JSON 报告中为每次调用追加一行记录，便于后续分析：
+
+```sh
+pnpm cache-report --since 2026-11-01 --show-examples
+```
+
 ### Profile 运行
 
 从源码 checkout 运行这些演示前，请单独执行仓库构建：
