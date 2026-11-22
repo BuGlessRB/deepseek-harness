@@ -104,10 +104,15 @@ export class AgentModel implements Model {
   ) {}
 
   current(): Readonly<ModelSelection> | undefined {
-    const recorded = this.recordedSelection()
-    if (recorded !== null) return { ...recorded }
+    const recorded = this.recorded()
+    if (recorded !== undefined) return recorded
     const { provider, model, reasoningEffort } = this.options
     return provider && model ? toSelection(provider, model, reasoningEffort) : undefined
+  }
+
+  recorded(): Readonly<ModelSelection> | undefined {
+    const recorded = this.recordedSelection()
+    return recorded === null ? undefined : { ...recorded }
   }
 
   select(selection: Readonly<ModelSelection>): void {

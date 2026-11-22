@@ -505,6 +505,26 @@ describe('headless runner', () => {
     } finally { await test.ctx.fiber.dispose() }
   })
 
+  it.each([false, true])('the deployment route seeds only a Session that records no selection (recorded=%s)', async (recorded) => {
+    const selection = { provider: 'recorded-provider', model: 'recorded-model', reasoningEffort: brandString<ReasoningEffortId>('max') }
+    const seeded = { provider: 'test-provider', model: 'test-model' }
+    const test = await bench({
+      afterPrompt(session, message, agent) {
+        expect(agent.model.current()).toEqual(recorded ? selection : seeded)
+        expect(session.snapshotEvents().filter(event => event.type === 'model/selection').map(event => event.data))
+          .toEqual([recorded ? selection : seeded])
+        appendTurn(session, 1, message, 'adopted', true)
+      },
+    }, {
+      sessionId: 'session-exact',
+      observe: async () => ({ header: { cwd: process.cwd(), origin: 'user' }, events: [], [Symbol.dispose]() {} }),
+    })
+    const session = test.ctx.sessions.create(brandString<SessionId>('session-exact'), { meta: { cwd: process.cwd() } })
+    if (recorded) session.append('model/selection', selection)
+    try { expect(await test.run()).toMatchObject({ code: 0, out: 'adopted\n' }) }
+    finally { await test.ctx.fiber.dispose() }
+  })
+
   it('resumes against the provider cwd instead of the host launch directory', async () => {
     const cwd = '/remote/workspace'
     const test = await bench({
@@ -875,12 +895,12 @@ describe('headless runner', () => {
     await test.ctx.fiber.dispose()
   })
 
-  it.each(['test-model', 'other-model'])('restores explicit effort only for the declared route (%s)', async (savedModel) => {
+  it('keeps an adopted Session on the route and effort it recorded', async () => {
     const test = await bench({
       afterPrompt(session, message, agent) {
+        // The deployment default is test-provider/test-model; the conversation keeps its own route.
         expect(agent.model.current()).toEqual({
-          provider: 'test-provider', model: 'test-model',
-          ...savedModel === 'test-model' ? { reasoningEffort: 'high' } : {},
+          provider: 'test-provider', model: 'other-model', reasoningEffort: brandString<ReasoningEffortId>('high'),
         })
         appendTurn(session, 1, message, 'resumed answer', true)
       },
@@ -894,7 +914,7 @@ describe('headless runner', () => {
     })
     try {
       const session = test.ctx.sessions.create(brandString<SessionId>('session-effort'), { meta: { cwd: process.cwd() } })
-      session.append('model/selection', { provider: 'test-provider', model: savedModel, reasoningEffort: brandString<ReasoningEffortId>('high') })
+      session.append('model/selection', { provider: 'test-provider', model: 'other-model', reasoningEffort: brandString<ReasoningEffortId>('high') })
       expect(await test.run()).toMatchObject({ code: 0, out: 'resumed answer\n', err: '' })
     } finally {
       await test.ctx.fiber.dispose()

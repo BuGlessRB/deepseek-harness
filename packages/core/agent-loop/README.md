@@ -54,7 +54,7 @@ Agents declared in config start automatically when the plugin loads. Each entry 
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-agent-loop) lists every accepted field. `maxParallelToolCalls` remains a volatile positive-integer Config field with default `10`; `1` selects serial execution. The loop passes its current value to each batch's `execute()` call, taking precedence over executor configuration. Live edits apply to the next batch; `agents` remains startup configuration.
 
-A configured resume records the declared route as the Session selection before publication. Programmatic resume preserves the Session choice unless its setup explicitly records another route; initial `agentOptions` alone do not override saved history.
+A configured resume records the declared route only when the Session records no model selection of its own; a resumed conversation keeps the route and effort it has been using, so a configuration change seeds new Sessions instead of re-routing saved history. Programmatic resume follows the same rule: initial `agentOptions` alone never override a recorded selection, and only an explicit `select()` in setup does.
 
 ### Create or resume agents programmatically
 

@@ -61,6 +61,14 @@ export interface Model {
   current(): Readonly<ModelSelection> | undefined
 
   /**
+   * The choice this Session recorded for itself, without the Agent's live
+   * options fallback. Entry points use it to tell a Session that owns its
+   * selection from one that configuration may seed.
+   * @returns a detached recorded choice, or undefined when the Session records none.
+   */
+  recorded(): Readonly<ModelSelection> | undefined
+
+  /**
    * Replace the next step's complete selection. Omitted effort follows adapter
    * defaults without inheriting a previous effort or resolving defaults here.
    * An equal recorded choice is a no-op; an options-only fallback is

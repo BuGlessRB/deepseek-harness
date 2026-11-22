@@ -369,16 +369,18 @@ export class AgentLoop extends Service implements AgentFactory {
     }
   }
 
+  /**
+   * Seed a Session with the configured route. A resumed Session that already
+   * records a model selection keeps it, so a configuration or default change
+   * applies to new Sessions instead of re-routing a conversation mid-history.
+   * @param agent - resumed Agent whose Session may still be unseeded.
+   * @param options - configured provider, model, and optional effort.
+   */
   private applyConfiguredRoute(agent: Agent, options: AgentOptions): void {
+    if (agent.model.recorded() !== undefined) return
     const { provider, model, reasoningEffort } = options
     if (!provider || !model) return
-    const previous = agent.model.current()
     const selection: ModelSelection = { provider, model, ...reasoningEffort === undefined ? {} : { reasoningEffort } }
-    if (selection.reasoningEffort === undefined && previous !== undefined
-      && previous.provider === selection.provider && previous.model === selection.model
-      && previous.reasoningEffort !== undefined) {
-      selection.reasoningEffort = previous.reasoningEffort
-    }
     agent.model.select(selection)
   }
 

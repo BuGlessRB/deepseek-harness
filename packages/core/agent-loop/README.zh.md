@@ -54,7 +54,7 @@ kind: "package-reference"
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-agent-loop) 列出所有接受的字段。`maxParallelToolCalls` 仍是 volatile 正整数 Config 字段，默认值为 `10`；`1` 表示串行执行。循环在每个批次调用 `execute()` 时传入当前值，其优先级高于执行器配置。实时修改从下一个批次生效；`agents` 仍是启动配置。
 
-配置式恢复会在发布前将声明的路由记录为 Session 选择。程序化恢复保留 Session 选择，除非其 setup 显式记录另一条路由；仅传入初始 `agentOptions` 不会覆盖已有历史。
+配置式恢复仅在 Session 自身没有记录模型选择时，才在发布前记录声明的路由；恢复的会话会沿用此前的路由与强度，因此配置变更只为新 Session 播种，而不会在已保存的历史中途改换路由。程序化恢复遵循同一规则：仅传入初始 `agentOptions` 不会覆盖已记录的选择，只有 setup 中显式调用 `select()` 才会。
 
 ### 以编程方式创建或恢复 agent
 
