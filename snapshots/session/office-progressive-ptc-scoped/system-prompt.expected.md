@@ -57,50 +57,50 @@ interface ToolArgsMap {
   apply_patch: {
     /** Patch text: start with *** Begin Patch and end with *** End Patch. Use *** Add File: path with + lines; *** Update File: path, optionally followed by *** Move to: path, with @@ or @@ context and space-prefixed context, + added, or - removed lines; *** End of File anchors the last hunk to the file end. Use *** Delete File: path to delete. Paths are relative to the Session working directory. */
     input: string;
-    /** The narrowest wider sandbox mode for a one-shot retry of the exact operation the sandbox just denied; the retry asks the user for approval. */
-    sandbox_permissions?: "workspace-write" | "danger-full-access";
     /** Required with sandbox_permissions: one sentence for the user explaining why this exact file operation needs the wider access. Use the language of the user’s current request. */
     justification?: string;
+    /** The narrowest wider sandbox mode for a one-shot retry of the exact operation the sandbox just denied; the retry asks the user for approval. */
+    sandbox_permissions?: "workspace-write" | "danger-full-access";
   } & Record<string, JsonValue>;
   /** Create a persisted goal that keeps this session working across automatic continuation rounds. Use it when the direct human request is a long-running objective, even if the user did not say "goal"; not for single-turn work. */
   create_goal: {
-    /** The concrete completion objective inferred from the direct human request. */
-    objective: string;
     /** Optional positive safe-integer limit on automatic continuation rounds. */
     max_goal_rounds?: number;
+    /** The concrete completion objective inferred from the direct human request. */
+    objective: string;
   } & Record<string, JsonValue>;
   /** Edit an existing UTF-8 text file by replacing literal text. */
   edit: {
     /** Path to edit, resolved by the filesystem backend. Provide `file_path` before `old_string` and `new_string` in the arguments. */
     file_path: string;
-    /** Literal text to replace. */
-    old_string: string;
+    /** Required with sandbox_permissions: one sentence for the user explaining why this exact file operation needs the wider access. Use the language of the user’s current request. */
+    justification?: string;
     /** Literal replacement text. Use an empty string to delete the match. */
     new_string: string;
+    /** Literal text to replace. */
+    old_string: string;
     /** Replace all matches. Defaults to false; when false, old_string must appear exactly once. */
     replace_all?: boolean;
     /** The narrowest wider sandbox mode for a one-shot retry of the exact operation the sandbox just denied; the retry asks the user for approval. */
     sandbox_permissions?: "workspace-write" | "danger-full-access";
-    /** Required with sandbox_permissions: one sentence for the user explaining why this exact file operation needs the wider access. Use the language of the user’s current request. */
-    justification?: string;
   } & Record<string, JsonValue>;
   /** Read the current session goal, including the id and revision that update_goal requires. */
   get_goal: Record<string, JsonValue>;
   /** Find files, not directories, whose paths match a glob pattern, including hidden and ignored files. Returns up to 100 paths in modification-time order; a larger result keeps the first paths and reports where the complete list was saved. */
   glob: {
-    /** Glob pattern to match file paths against (e.g. "**\/*.ts", "src/**\/*.test.js"). A pattern with no "/" matches the basename at any depth, so "*" and "*.ts" both search the whole tree; include a separator to anchor the depth. */
-    pattern: string;
     /** Directory to search in. Defaults to the session workspace; a relative path resolves against it. */
     path?: string;
+    /** Glob pattern to match file paths against (e.g. "**\/*.ts", "src/**\/*.test.js"). A pattern with no "/" matches the basename at any depth, so "*" and "*.ts" both search the whole tree; include a separator to anchor the depth. */
+    pattern: string;
   } & Record<string, JsonValue>;
   /** Search file contents with a ripgrep regular expression. Returns matching lines with line numbers, grouped by file. Returns up to 250 matches; a larger result reports where the complete match list was saved. */
   grep: {
-    /** Regular expression to search for (ripgrep syntax). */
-    pattern: string;
-    /** File or directory to search. Defaults to the session workspace; a relative path resolves against it. */
-    path?: string;
     /** One glob filter for which files to search (e.g. "*.ts", "*.{js,jsx}"). Not a list; negation is not supported. */
     include?: string;
+    /** File or directory to search. Defaults to the session workspace; a relative path resolves against it. */
+    path?: string;
+    /** Regular expression to search for (ripgrep syntax). */
+    pattern: string;
   } & Record<string, JsonValue>;
   /** Request cancellation of a running background job. */
   job_kill: {
@@ -115,10 +115,10 @@ interface ToolArgsMap {
   job_output: {
     /** Job id returned by the tool that started the background work. */
     job_id: string;
-    /** Block until the job finishes or the timeout expires; a timed-out wait leaves the job running. Defaults to false. */
-    wait?: boolean;
     /** Max wait in milliseconds with wait: true. Defaults to and is capped by configuration. */
     timeout_ms?: number;
+    /** Block until the job finishes or the timeout expires; a timed-out wait leaves the job running. Defaults to false. */
+    wait?: boolean;
   } & Record<string, JsonValue>;
   /** List your entire subagent tree: the root agent and all reachable continuable descendants, including yourself. Shared capacity reports running/limit; do not spawn more agents when capacity is limited. Rows carry names, descriptions, and status. A descendant's name is its path from the root, such as reviewer/checker. You can message any other agent in the subagent tree. running means it is working; inactive means no turn is executing; it does not indicate task completion, success, or failure. corrupt, unsupported, or unavailable means this row's own descendants could not be read; the row itself is still a member you can message. While you remain active, you will be notified when a direct child finishes; there is no need to keep checking its status. Use send_message to continue the conversation. */
   list_agents: Record<string, JsonValue>;
@@ -128,10 +128,10 @@ interface ToolArgsMap {
   read: {
     /** Path to read, resolved by the filesystem backend. */
     file_path: string;
-    /** 1-based first line to return. Defaults to 1. */
-    offset?: number;
     /** Maximum number of lines to return. Defaults to 2000. */
     limit?: number;
+    /** 1-based first line to return. Defaults to 1. */
+    offset?: number;
   } & Record<string, JsonValue>;
   /** Read a PNG/JPEG/WebP/GIF file and return the image itself. Large images are downscaled automatically; do not install image libraries or create thumbnails to inspect an image. */
   read_image: {
@@ -180,18 +180,18 @@ interface ToolArgsMap {
   } & Record<string, JsonValue>;
   /** Update the current goal. */
   update_goal: {
-    /** Exact id returned by get_goal. */
-    goal_id: string;
-    /** Exact positive revision returned by get_goal. */
-    revision: number;
     /** edit, pause, and resume require a direct top-level human request. complete and blocked are also allowed during an automatic continuation of this goal; blocked is rejected before the configured minimum round count. */
     action: "edit" | "pause" | "resume" | "complete" | "blocked";
-    /** Replacement objective; valid only with action edit. */
-    objective?: string;
-    /** Replacement cap; valid only with action edit. */
-    max_goal_rounds?: number;
     /** Required only with action blocked: the concrete condition that persisted across rounds and blocks progress. */
     blocked_reason?: string;
+    /** Exact id returned by get_goal. */
+    goal_id: string;
+    /** Replacement cap; valid only with action edit. */
+    max_goal_rounds?: number;
+    /** Replacement objective; valid only with action edit. */
+    objective?: string;
+    /** Exact positive revision returned by get_goal. */
+    revision: number;
   } & Record<string, JsonValue>;
   /** Wait for input at your next step, including agent messages, completion notifications, and user steering. Returns immediately if new input is pending. `timedOut: false` means new input is pending. Pending input is delivered to the model after code execution finishes. */
   wait_agent: {
@@ -210,43 +210,43 @@ interface ToolArgsMap {
   } & Record<string, JsonValue>;
   /** Run a JavaScript workflow script that orchestrates subagents at scale. Use this for work that fans out across many independent pieces — an audit over many files, a migration, multi-angle research, adversarial verification of findings — where you write the orchestration as a script instead of delegating turn by turn. Script-body hooks: - `agent(prompt, opts?): Promise<any>` — run one subagent to completion. Without `opts.schema` it resolves to the child's final text; with `opts.schema` (an object-rooted JSON Schema using ONLY type/properties/required/additionalProperties/items/enum/const/oneOf) it resolves to the validated object. Resolves `null` when the child fails (filter with `.filter(Boolean)`). Other opts: `label` (display), `phase` (progress group), and independent `provider`/`model` LLM target overrides. - `pipeline(items, ...stages): Promise<any[]>` — run each item through the stages independently with NO barrier between stages (prefer this for multi-stage work). Each stage receives `(prev, item, index)`. A stage throw drops that ITEM to `null` and skips its remaining stages. - `parallel(thunks): Promise<any[]>` — run zero-argument functions concurrently and await ALL of them (a barrier; use only when a stage genuinely needs every prior result together). A throwing thunk resolves to `null`. - `phase(title)` — start a progress phase; `log(message)` — narrate progress; `args` — the tool call's `args` input, verbatim. Misused hooks (bad arguments, unknown options, unsupported schemas, tripped caps) end the whole script instead of producing `null`. The script has no filesystem, network, timer, or Node.js APIs; the agents do the work. */
   workflow: {
-    /** The plain JavaScript body, not TypeScript and without an `export const meta` statement; top-level await is allowed. End with `return <value>`; the JSON-serializable value is this tool's result. */
-    script: string;
-    /** The workflow identity as plain JSON, not code. */
-    meta: {
-      /** Short kebab-case workflow name. */
-      name: string;
-      /** One-line description of what the workflow does. */
-      description: string;
-      /** Optional guidance on when this workflow applies. */
-      whenToUse?: string;
-      /** Optional phase declarations matched by phase() calls. */
-      phases?: ({
-        /** The phase title phase() calls match by exact string. */
-        title: string;
-        /** Optional one-line description of the phase. */
-        detail?: string;
-        /** Optional provider override this phase is expected to use. */
-        provider?: string;
-        /** Optional model override this phase is expected to use. */
-        model?: string;
-      } & Record<string, JsonValue>)[];
-    } & Record<string, JsonValue>;
     /** Optional JSON input exposed to the script as the `args` global (wrap a bare list as a field, e.g. {"files": [...]}). */
     args?: Record<string, JsonValue>;
+    /** The workflow identity as plain JSON, not code. */
+    meta: {
+      /** One-line description of what the workflow does. */
+      description: string;
+      /** Short kebab-case workflow name. */
+      name: string;
+      /** Optional phase declarations matched by phase() calls. */
+      phases?: ({
+        /** Optional one-line description of the phase. */
+        detail?: string;
+        /** Optional model override this phase is expected to use. */
+        model?: string;
+        /** Optional provider override this phase is expected to use. */
+        provider?: string;
+        /** The phase title phase() calls match by exact string. */
+        title: string;
+      } & Record<string, JsonValue>)[];
+      /** Optional guidance on when this workflow applies. */
+      whenToUse?: string;
+    } & Record<string, JsonValue>;
     /** Run as a background job: return a job id immediately instead of waiting; the return value arrives with the completion notice. */
     run_in_background?: boolean;
+    /** The plain JavaScript body, not TypeScript and without an `export const meta` statement; top-level await is allowed. End with `return <value>`; the JSON-serializable value is this tool's result. */
+    script: string;
   } & Record<string, JsonValue>;
   /** Create or fully replace a UTF-8 text file. */
   write: {
-    /** Path to write, resolved by the filesystem backend. Provide `file_path` before `content` in the arguments. */
-    file_path: string;
     /** Full UTF-8 text content to write. */
     content: string;
-    /** The narrowest wider sandbox mode for a one-shot retry of the exact operation the sandbox just denied; the retry asks the user for approval. */
-    sandbox_permissions?: "workspace-write" | "danger-full-access";
+    /** Path to write, resolved by the filesystem backend. Provide `file_path` before `content` in the arguments. */
+    file_path: string;
     /** Required with sandbox_permissions: one sentence for the user explaining why this exact file operation needs the wider access. Use the language of the user’s current request. */
     justification?: string;
+    /** The narrowest wider sandbox mode for a one-shot retry of the exact operation the sandbox just denied; the retry asks the user for approval. */
+    sandbox_permissions?: "workspace-write" | "danger-full-access";
   } & Record<string, JsonValue>;
 }
 
@@ -528,50 +528,50 @@ interface ToolArgsMap {
   apply_patch: {
     /** Patch text: start with *** Begin Patch and end with *** End Patch. Use *** Add File: path with + lines; *** Update File: path, optionally followed by *** Move to: path, with @@ or @@ context and space-prefixed context, + added, or - removed lines; *** End of File anchors the last hunk to the file end. Use *** Delete File: path to delete. Paths are relative to the Session working directory. */
     input: string;
-    /** The narrowest wider sandbox mode for a one-shot retry of the exact operation the sandbox just denied; the retry asks the user for approval. */
-    sandbox_permissions?: "workspace-write" | "danger-full-access";
     /** Required with sandbox_permissions: one sentence for the user explaining why this exact file operation needs the wider access. Use the language of the user’s current request. */
     justification?: string;
+    /** The narrowest wider sandbox mode for a one-shot retry of the exact operation the sandbox just denied; the retry asks the user for approval. */
+    sandbox_permissions?: "workspace-write" | "danger-full-access";
   } & Record<string, JsonValue>;
   /** Create a persisted goal that keeps this session working across automatic continuation rounds. Use it when the direct human request is a long-running objective, even if the user did not say "goal"; not for single-turn work. */
   create_goal: {
-    /** The concrete completion objective inferred from the direct human request. */
-    objective: string;
     /** Optional positive safe-integer limit on automatic continuation rounds. */
     max_goal_rounds?: number;
+    /** The concrete completion objective inferred from the direct human request. */
+    objective: string;
   } & Record<string, JsonValue>;
   /** Edit an existing UTF-8 text file by replacing literal text. */
   edit: {
     /** Path to edit, resolved by the filesystem backend. Provide `file_path` before `old_string` and `new_string` in the arguments. */
     file_path: string;
-    /** Literal text to replace. */
-    old_string: string;
+    /** Required with sandbox_permissions: one sentence for the user explaining why this exact file operation needs the wider access. Use the language of the user’s current request. */
+    justification?: string;
     /** Literal replacement text. Use an empty string to delete the match. */
     new_string: string;
+    /** Literal text to replace. */
+    old_string: string;
     /** Replace all matches. Defaults to false; when false, old_string must appear exactly once. */
     replace_all?: boolean;
     /** The narrowest wider sandbox mode for a one-shot retry of the exact operation the sandbox just denied; the retry asks the user for approval. */
     sandbox_permissions?: "workspace-write" | "danger-full-access";
-    /** Required with sandbox_permissions: one sentence for the user explaining why this exact file operation needs the wider access. Use the language of the user’s current request. */
-    justification?: string;
   } & Record<string, JsonValue>;
   /** Read the current session goal, including the id and revision that update_goal requires. */
   get_goal: Record<string, JsonValue>;
   /** Find files, not directories, whose paths match a glob pattern, including hidden and ignored files. Returns up to 100 paths in modification-time order; a larger result keeps the first paths and reports where the complete list was saved. */
   glob: {
-    /** Glob pattern to match file paths against (e.g. "**\/*.ts", "src/**\/*.test.js"). A pattern with no "/" matches the basename at any depth, so "*" and "*.ts" both search the whole tree; include a separator to anchor the depth. */
-    pattern: string;
     /** Directory to search in. Defaults to the session workspace; a relative path resolves against it. */
     path?: string;
+    /** Glob pattern to match file paths against (e.g. "**\/*.ts", "src/**\/*.test.js"). A pattern with no "/" matches the basename at any depth, so "*" and "*.ts" both search the whole tree; include a separator to anchor the depth. */
+    pattern: string;
   } & Record<string, JsonValue>;
   /** Search file contents with a ripgrep regular expression. Returns matching lines with line numbers, grouped by file. Returns up to 250 matches; a larger result reports where the complete match list was saved. */
   grep: {
-    /** Regular expression to search for (ripgrep syntax). */
-    pattern: string;
-    /** File or directory to search. Defaults to the session workspace; a relative path resolves against it. */
-    path?: string;
     /** One glob filter for which files to search (e.g. "*.ts", "*.{js,jsx}"). Not a list; negation is not supported. */
     include?: string;
+    /** File or directory to search. Defaults to the session workspace; a relative path resolves against it. */
+    path?: string;
+    /** Regular expression to search for (ripgrep syntax). */
+    pattern: string;
   } & Record<string, JsonValue>;
   /** Request cancellation of a running background job. */
   job_kill: {
@@ -586,10 +586,10 @@ interface ToolArgsMap {
   job_output: {
     /** Job id returned by the tool that started the background work. */
     job_id: string;
-    /** Block until the job finishes or the timeout expires; a timed-out wait leaves the job running. Defaults to false. */
-    wait?: boolean;
     /** Max wait in milliseconds with wait: true. Defaults to and is capped by configuration. */
     timeout_ms?: number;
+    /** Block until the job finishes or the timeout expires; a timed-out wait leaves the job running. Defaults to false. */
+    wait?: boolean;
   } & Record<string, JsonValue>;
   /** List your entire subagent tree: the root agent and all reachable continuable descendants, including yourself. Shared capacity reports running/limit; do not spawn more agents when capacity is limited. Rows carry names, descriptions, and status. A descendant's name is its path from the root, such as reviewer/checker. You can message any other agent in the subagent tree. running means it is working; inactive means no turn is executing; it does not indicate task completion, success, or failure. corrupt, unsupported, or unavailable means this row's own descendants could not be read; the row itself is still a member you can message. While you remain active, you will be notified when a direct child finishes; there is no need to keep checking its status. Use send_message to continue the conversation. */
   list_agents: Record<string, JsonValue>;
@@ -597,41 +597,41 @@ interface ToolArgsMap {
   load_workspace_dependencies: Record<string, JsonValue>;
   /** Convert a document to another format. Return a temporary file to copy to its destination with the shell. */
   office_convert: {
-    /** Path to doc, docx, odt, xls, xlsx, ods, ppt, pptx, or odp; not modified. */
-    input: string;
     /** Word: pdf, docx, odt, txt. Excel: pdf, xlsx, ods, csv. PowerPoint: pdf, pptx, odp. */
     format: "pdf" | "docx" | "odt" | "txt" | "xlsx" | "ods" | "csv" | "pptx" | "odp";
+    /** Path to doc, docx, odt, xls, xlsx, ods, ppt, pptx, or odp; not modified. */
+    input: string;
     /** Exact worksheet name for CSV only; required when the workbook has several sheets. */
     sheet?: string;
   } & Record<string, JsonValue>;
   /** Recalculate spreadsheet formulas. Return a temporary workbook to copy to its destination with the shell. */
   office_recalculate: {
-    /** Path to an xls, xlsx, or ods workbook; not modified. */
-    input: string;
     /** Output workbook format. */
     format: "xlsx" | "ods";
+    /** Path to an xls, xlsx, or ods workbook; not modified. */
+    input: string;
   } & Record<string, JsonValue>;
   /** Render document pages, slides, or worksheet areas as images you can view. */
   office_render: {
+    /** Resolution from 24 to 600; default 144. */
+    dpi?: number;
     /** Path to doc, docx, odt, xls, xlsx, ods, ppt, pptx, odp, or pdf; not modified. */
     input: string;
     /** Distinct one-based pages or slides; omit for all. Spreadsheets use sheet and range instead. */
     pages?: number[];
-    /** Exact worksheet name; omit to render every visible sheet. */
-    sheet?: string;
     /** A1 range, such as A1:H40; requires sheet. Omit for the used area. */
     range?: string;
-    /** Resolution from 24 to 600; default 144. */
-    dpi?: number;
+    /** Exact worksheet name; omit to render every visible sheet. */
+    sheet?: string;
   } & Record<string, JsonValue>;
   /** Read a UTF-8 text file and return line-numbered content. */
   read: {
     /** Path to read, resolved by the filesystem backend. */
     file_path: string;
-    /** 1-based first line to return. Defaults to 1. */
-    offset?: number;
     /** Maximum number of lines to return. Defaults to 2000. */
     limit?: number;
+    /** 1-based first line to return. Defaults to 1. */
+    offset?: number;
   } & Record<string, JsonValue>;
   /** Read a PNG/JPEG/WebP/GIF file and return the image itself. Large images are downscaled automatically; do not install image libraries or create thumbnails to inspect an image. */
   read_image: {
@@ -680,18 +680,18 @@ interface ToolArgsMap {
   } & Record<string, JsonValue>;
   /** Update the current goal. */
   update_goal: {
-    /** Exact id returned by get_goal. */
-    goal_id: string;
-    /** Exact positive revision returned by get_goal. */
-    revision: number;
     /** edit, pause, and resume require a direct top-level human request. complete and blocked are also allowed during an automatic continuation of this goal; blocked is rejected before the configured minimum round count. */
     action: "edit" | "pause" | "resume" | "complete" | "blocked";
-    /** Replacement objective; valid only with action edit. */
-    objective?: string;
-    /** Replacement cap; valid only with action edit. */
-    max_goal_rounds?: number;
     /** Required only with action blocked: the concrete condition that persisted across rounds and blocks progress. */
     blocked_reason?: string;
+    /** Exact id returned by get_goal. */
+    goal_id: string;
+    /** Replacement cap; valid only with action edit. */
+    max_goal_rounds?: number;
+    /** Replacement objective; valid only with action edit. */
+    objective?: string;
+    /** Exact positive revision returned by get_goal. */
+    revision: number;
   } & Record<string, JsonValue>;
   /** Wait for input at your next step, including agent messages, completion notifications, and user steering. Returns immediately if new input is pending. `timedOut: false` means new input is pending. Pending input is delivered to the model after code execution finishes. */
   wait_agent: {
@@ -710,43 +710,43 @@ interface ToolArgsMap {
   } & Record<string, JsonValue>;
   /** Run a JavaScript workflow script that orchestrates subagents at scale. Use this for work that fans out across many independent pieces — an audit over many files, a migration, multi-angle research, adversarial verification of findings — where you write the orchestration as a script instead of delegating turn by turn. Script-body hooks: - `agent(prompt, opts?): Promise<any>` — run one subagent to completion. Without `opts.schema` it resolves to the child's final text; with `opts.schema` (an object-rooted JSON Schema using ONLY type/properties/required/additionalProperties/items/enum/const/oneOf) it resolves to the validated object. Resolves `null` when the child fails (filter with `.filter(Boolean)`). Other opts: `label` (display), `phase` (progress group), and independent `provider`/`model` LLM target overrides. - `pipeline(items, ...stages): Promise<any[]>` — run each item through the stages independently with NO barrier between stages (prefer this for multi-stage work). Each stage receives `(prev, item, index)`. A stage throw drops that ITEM to `null` and skips its remaining stages. - `parallel(thunks): Promise<any[]>` — run zero-argument functions concurrently and await ALL of them (a barrier; use only when a stage genuinely needs every prior result together). A throwing thunk resolves to `null`. - `phase(title)` — start a progress phase; `log(message)` — narrate progress; `args` — the tool call's `args` input, verbatim. Misused hooks (bad arguments, unknown options, unsupported schemas, tripped caps) end the whole script instead of producing `null`. The script has no filesystem, network, timer, or Node.js APIs; the agents do the work. */
   workflow: {
-    /** The plain JavaScript body, not TypeScript and without an `export const meta` statement; top-level await is allowed. End with `return <value>`; the JSON-serializable value is this tool's result. */
-    script: string;
-    /** The workflow identity as plain JSON, not code. */
-    meta: {
-      /** Short kebab-case workflow name. */
-      name: string;
-      /** One-line description of what the workflow does. */
-      description: string;
-      /** Optional guidance on when this workflow applies. */
-      whenToUse?: string;
-      /** Optional phase declarations matched by phase() calls. */
-      phases?: ({
-        /** The phase title phase() calls match by exact string. */
-        title: string;
-        /** Optional one-line description of the phase. */
-        detail?: string;
-        /** Optional provider override this phase is expected to use. */
-        provider?: string;
-        /** Optional model override this phase is expected to use. */
-        model?: string;
-      } & Record<string, JsonValue>)[];
-    } & Record<string, JsonValue>;
     /** Optional JSON input exposed to the script as the `args` global (wrap a bare list as a field, e.g. {"files": [...]}). */
     args?: Record<string, JsonValue>;
+    /** The workflow identity as plain JSON, not code. */
+    meta: {
+      /** One-line description of what the workflow does. */
+      description: string;
+      /** Short kebab-case workflow name. */
+      name: string;
+      /** Optional phase declarations matched by phase() calls. */
+      phases?: ({
+        /** Optional one-line description of the phase. */
+        detail?: string;
+        /** Optional model override this phase is expected to use. */
+        model?: string;
+        /** Optional provider override this phase is expected to use. */
+        provider?: string;
+        /** The phase title phase() calls match by exact string. */
+        title: string;
+      } & Record<string, JsonValue>)[];
+      /** Optional guidance on when this workflow applies. */
+      whenToUse?: string;
+    } & Record<string, JsonValue>;
     /** Run as a background job: return a job id immediately instead of waiting; the return value arrives with the completion notice. */
     run_in_background?: boolean;
+    /** The plain JavaScript body, not TypeScript and without an `export const meta` statement; top-level await is allowed. End with `return <value>`; the JSON-serializable value is this tool's result. */
+    script: string;
   } & Record<string, JsonValue>;
   /** Create or fully replace a UTF-8 text file. */
   write: {
-    /** Path to write, resolved by the filesystem backend. Provide `file_path` before `content` in the arguments. */
-    file_path: string;
     /** Full UTF-8 text content to write. */
     content: string;
-    /** The narrowest wider sandbox mode for a one-shot retry of the exact operation the sandbox just denied; the retry asks the user for approval. */
-    sandbox_permissions?: "workspace-write" | "danger-full-access";
+    /** Path to write, resolved by the filesystem backend. Provide `file_path` before `content` in the arguments. */
+    file_path: string;
     /** Required with sandbox_permissions: one sentence for the user explaining why this exact file operation needs the wider access. Use the language of the user’s current request. */
     justification?: string;
+    /** The narrowest wider sandbox mode for a one-shot retry of the exact operation the sandbox just denied; the retry asks the user for approval. */
+    sandbox_permissions?: "workspace-write" | "danger-full-access";
   } & Record<string, JsonValue>;
 }
 
