@@ -39,7 +39,7 @@ function renderAssistantBody(
 ): ReactNode {
   // The observable snapshot source is the selector-hook seat: its snapshot IS
   // the selector's input, which is what `usePresentation` receives.
-  const usePresentation = presentation.getSnapshot as unknown as UsePresentation
+  const usePresentation = (() => presentation.getSnapshot()) as unknown as UsePresentation
   return <AssistantBodyOnly {...props} usePresentation={usePresentation} />
 }
 
