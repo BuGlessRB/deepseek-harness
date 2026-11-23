@@ -1268,7 +1268,7 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
         expect((first.tools as JsonObject[]).map(tool => tool.name)).toEqual(expect.arrayContaining([
           'team_task_create', 'team_task_get', 'team_task_list', 'team_task_update',
         ]))
-        expect(JSON.stringify(first.messages)).toContain('Agent Teams is available in this session.')
+        expect(JSON.stringify(first.messages)).toContain('Agent Teams guidance. Apply it only while the current session information reports Agent Teams as enabled.')
         expect(events.filter(event => event.type === 'team/task').map(event => event.data.task))
           .toEqual([expect.objectContaining({ subject: 'Configured Team', status: 'pending' })])
         expect(events.filter(event => event.type === 'tool/result').map(event => event.data.message.isError))
@@ -1280,7 +1280,7 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
         expect(JSON.stringify(childResults)).toContain('Configured Team')
         for (const request of modelRequests) {
           expect((request.tools as JsonObject[]).map(tool => tool.name)).toContain('team_task_list')
-          expect(JSON.stringify(request.messages)).toContain('Agent Teams is available in this session.')
+          expect(JSON.stringify(request.messages)).toContain('Agent Teams guidance. Apply it only while the current session information reports Agent Teams as enabled.')
         }
       }
       if (scenario.name === 'command-attachments') {
@@ -1371,10 +1371,11 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
         expect(events.filter(event => event.type === 'step/start')).toHaveLength(6)
         expect(modelRequests).toHaveLength(6)
         const active = modelRequests.map((request) => {
+          // The mode state reaches the model as the `plan:mode` runtime context,
+          // which is a user-role reminder rather than a system message.
           const messages = request.messages as JsonObject[]
-          const system = JSON.stringify(messages.filter(message => message.role === 'system'))
-          return system.lastIndexOf('Plan mode is active. Follow the plan-mode instructions.')
-            > system.lastIndexOf('Plan mode is inactive. The plan-mode instructions no longer apply.')
+          const wire = JSON.stringify(messages)
+          return wire.lastIndexOf('Plan mode is active.') > wire.lastIndexOf('Plan mode is inactive.')
         })
         expect(active).toEqual([false, true, true, false, true, false])
         expect(modelRequests.map(request => (request.tools as JsonObject[]).some(tool => tool.name === 'exit_plan_mode')))
